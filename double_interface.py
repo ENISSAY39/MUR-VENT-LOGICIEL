@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, simpledialog, messagebox
 import json
 import threading
 import time
@@ -16,6 +16,8 @@ class GVMControlApp:
         self.publish_cell = 24
         self.current_mode = "percentage"
         self.selected_fans = set()
+        self.sequences = {}  # {name: {'powers': {...}, 'duration': int}}
+        self.sequence_buttons = []
 
         self.initialize_fan_data()
         self.create_frames()
@@ -83,7 +85,7 @@ class GVMControlApp:
         buttons_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
         ttk.Label(buttons_frame, text="Contrôles", font=('Helvetica', 12)).pack(pady=5)
-        ttk.Label(buttons_frame, text="Puissance (%):").pack(pady=(10,0))
+        ttk.Label(buttons_frame, text="Puissance (%):").pack(pady=(10, 0))
 
         self.power_var = tk.IntVar(value=0)
         power_slider = ttk.Scale(buttons_frame, from_=0, to=100, variable=self.power_var,
@@ -101,17 +103,23 @@ class GVMControlApp:
         self.publish_var = tk.StringVar(value=str(self.publish_cell))
         ttk.Entry(buttons_frame, textvariable=self.publish_var, width=5).pack()
 
+        # RIGHT SIDE: Sequences
+        sequence_frame = ttk.Frame(container)
+        sequence_frame.pack(side=tk.RIGHT, fill=tk.Y)
+        self.sequence_list_frame = ttk.Frame(sequence_frame)
+        self.sequence_list_frame.pack(fill=tk.Y, pady=(0, 10))
+
+        ttk.Label(self.sequence_list_frame, text="Liste des séquences", font=('Helvetica', 10)).pack(pady=5)
+
+        self.sequence_buttons_frame = ttk.Frame(self.sequence_list_frame)
+        self.sequence_buttons_frame.pack()
+
+        ttk.Button(sequence_frame, text="Créer séquence", command=self.create_sequence).pack(pady=10, ipadx=10, ipady=5)
+
         grid_frame = ttk.Frame(container)
         grid_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         self.create_fan_grid(grid_frame, "percentage")
-
-        self.status_console = tk.Text(main_frame, height=10, state=tk.DISABLED)
-        self.status_console.pack(fill=tk.BOTH, expand=True, pady=10)
-        scrollbar = ttk.Scrollbar(self.status_console)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.status_console.config(yscrollcommand=scrollbar.set)
-        scrollbar.config(command=self.status_console.yview)
 
         if not hasattr(self, 'back_button'):
             self.back_button = ttk.Button(self.root, text="Retour à l'accueil", command=self.show_home)
@@ -136,9 +144,6 @@ class GVMControlApp:
         tk.Label(legend_frame, text="   Normal   ", bg="green", fg="white").grid(row=0, column=1, padx=5)
         tk.Label(legend_frame, text="   Erreur   ", bg="red", fg="white").grid(row=0, column=2, padx=5)
         tk.Label(legend_frame, text="   Inactif   ", bg="SystemButtonFace").grid(row=0, column=3, padx=5)
-
-        if not hasattr(self, 'back_button'):
-            self.back_button = ttk.Button(self.root, text="Retour à l'accueil", command=self.show_home)
 
     def create_fan_grid(self, parent, mode):
         if hasattr(self, f'{mode}_grid_frame'):
@@ -196,108 +201,178 @@ class GVMControlApp:
             self.selected_fans.add(fan_key)
             btn.config(bg="blue", fg="white")
 
-        self.log_status(f"Ventilateurs sélectionnés : {len(self.selected_fans)}")
-
     def apply_power_selected(self):
         if not self.selected_fans:
-            self.log_status("Aucun ventilateur sélectionné.")
             return
         power = self.power_var.get()
         for cell_id, fan_idx in self.selected_fans:
             self.fan_status[cell_id]['power'][fan_idx] = power
             btn = self.fan_status[cell_id][f"btn_{fan_idx}"]
-            btn.config(text=f"{power}%", bg="blue" if power > 0 else "SystemButtonFace",
+            btn.config(text=f"{power}%", bg="green" if power > 0 else "SystemButtonFace",
                        fg="white" if power > 0 else "black")
-        self.log_status(f"Puissance appliquée: {power}% à {len(self.selected_fans)} ventilateurs sélectionnés")
-        self.generate_command_json()
+        self.selected_fans.clear()
 
     def apply_power_all(self):
         power = self.power_var.get()
         self.selected_fans.clear()
-        for cell_row in range(1, self.grid_rows + 1):
-            for cell_col in range(1, self.grid_cols + 1):
-                cell_id = f"{cell_row}{cell_col}"
-                for fan_idx in range(9):
-                    self.fan_status[cell_id]['power'][fan_idx] = power
-                    btn = self.fan_status[cell_id][f"btn_{fan_idx}"]
-                    btn.config(text=f"{power}%", bg="green" if power > 0 else "SystemButtonFace",
-                               fg="white" if power > 0 else "black")
-        self.log_status(f"Puissance appliquée: {power}% à tous les ventilateurs")
-        self.generate_command_json()
+        for cell_id in self.fan_status:
+            for fan_idx in range(9):
+                self.fan_status[cell_id]['power'][fan_idx] = power
+                btn = self.fan_status[cell_id][f"btn_{fan_idx}"]
+                btn.config(text=f"{power}%", bg="green" if power > 0 else "SystemButtonFace",
+                           fg="white" if power > 0 else "black")
 
     def stop_all(self):
         self.power_var.set(0)
         self.selected_fans.clear()
-        for cell_row in range(1, self.grid_rows + 1):
-            for cell_col in range(1, self.grid_cols + 1):
-                cell_id = f"{cell_row}{cell_col}"
-                for fan_idx in range(9):
-                    self.fan_status[cell_id]['power'][fan_idx] = 0
-                    btn = self.fan_status[cell_id][f"btn_{fan_idx}"]
-                    btn.config(text="0%", bg="SystemButtonFace", fg="black")
-        self.log_status("Tous les ventilateurs arrêtés")
-        self.generate_command_json()
+        for cell_id in self.fan_status:
+            for fan_idx in range(9):
+                self.fan_status[cell_id]['power'][fan_idx] = 0
+                btn = self.fan_status[cell_id][f"btn_{fan_idx}"]
+                btn.config(text="0%", bg="SystemButtonFace", fg="black")
 
     def update_rpm_data(self):
         while True:
             time.sleep(1)
-            for cell_row in range(1, self.grid_rows + 1):
-                for cell_col in range(1, self.grid_cols + 1):
-                    cell_id = f"{cell_row}{cell_col}"
-                    for fan_idx in range(9):
-                        power = self.fan_status[cell_id]['power'][fan_idx]
-                        rpm = power * 10 + random.randint(-300, 300)
-                        rpm = max(rpm, 0)
-                        self.fan_status[cell_id]['rpm'][fan_idx] = rpm
+            for cell_id in self.fan_status:
+                for fan_idx in range(9):
+                    power = self.fan_status[cell_id]['power'][fan_idx]
+                    rpm = power * 10 + random.randint(-300, 300)
+                    rpm = max(rpm, 0)
+                    self.fan_status[cell_id]['rpm'][fan_idx] = rpm
 
-                        if self.current_mode == "rpm":
-                            btn = self.fan_status[cell_id].get(f"rpm_btn_{fan_idx}")
-                            if btn:
-                                expected = power * 10
-                                functional = abs(rpm - expected) <= 500
-                                if power == 0:
-                                    btn.config(text="0 RPM", bg="SystemButtonFace", fg="black")
-                                else:
-                                    btn.config(text=f"{rpm} RPM", bg="green" if functional else "red", fg="white")
+                    if self.current_mode == "rpm":
+                        btn = self.fan_status[cell_id].get(f"rpm_btn_{fan_idx}")
+                        if btn:
+                            expected = power * 10
+                            functional = abs(rpm - expected) <= 500
+                            if power == 0:
+                                btn.config(text="0 RPM", bg="SystemButtonFace", fg="black")
+                            else:
+                                btn.config(text=f"{rpm} RPM", bg="green" if functional else "red", fg="white")
 
     def show_json(self):
         json_str = self.generate_command_json()
-
-        # Création d'une nouvelle fenêtre
         json_window = tk.Toplevel(self.root)
         json_window.title("Commande JSON")
-
-        # Zone de texte pour afficher le JSON
         text_widget = tk.Text(json_window, wrap=tk.WORD)
         text_widget.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         text_widget.insert(tk.END, json_str)
         text_widget.config(state=tk.DISABLED)
-
-        # Bouton pour fermer la fenêtre
         ttk.Button(json_window, text="Fermer", command=json_window.destroy).pack(pady=10)
-
 
     def generate_command_json(self):
         command = {
             "publish_cell": int(self.publish_var.get()) if self.publish_var.get().isdigit() else 24,
-            "fan_power": {}
+            "fan_power": {},
+            "sequences": {}
         }
-        for cell_row in range(1, self.grid_rows + 1):
-            for cell_col in range(1, self.grid_cols + 1):
-                cell_id = f"{cell_row}{cell_col}"
-                command["fan_power"][cell_id] = self.fan_status[cell_id]['power']
+        for cell_id in self.fan_status:
+            command["fan_power"][cell_id] = self.fan_status[cell_id]['power']
+        for name, data in self.sequences.items():
+            command["sequences"][name] = {
+                "powers": data['powers'],
+                "duration": data['duration']
+            }
         return json.dumps(command, indent=2)
 
-    def log_status(self, message):
-        if self.current_mode == "percentage":
-            console = self.status_console
-            console.config(state=tk.NORMAL)
-            console.insert(tk.END, message + "\n")
-            console.see(tk.END)
-            console.config(state=tk.DISABLED)
+    def create_sequence(self):
+        # Demande la durée (en secondes) via une fenêtre modale
+        duration = simpledialog.askinteger("Durée de la séquence",
+                                           "Entrez la durée en secondes pour cette séquence:",
+                                           minvalue=1, initialvalue=5)
+        if duration is None:
+            return  # Annulé
+
+        # Nom par défaut
+        base_name = f"Seq{len(self.sequences) + 1}"
+        name = base_name
+        i = 1
+        while name in self.sequences:
+            i += 1
+            name = f"{base_name}_{i}"
+
+        snapshot = {cell_id: self.fan_status[cell_id]['power'][:] for cell_id in self.fan_status}
+        self.sequences[name] = {'powers': snapshot, 'duration': duration}
+        self.add_sequence_button(name)
+        self.reset_grid()
+
+    def reset_grid(self):
+        for cell_id in self.fan_status:
+            for fan_idx in range(9):
+                self.fan_status[cell_id]['power'][fan_idx] = 0
+                btn = self.fan_status[cell_id][f"btn_{fan_idx}"]
+                btn.config(text="0%", bg="SystemButtonFace", fg="black")
+
+    def add_sequence_button(self, name):
+        frame = ttk.Frame(self.sequence_buttons_frame)
+        frame.pack(pady=2, fill=tk.X)
+
+        btn = ttk.Button(frame, text=name, width=15)
+        btn.pack(side=tk.LEFT)
+        btn.bind("<Double-Button-1>", lambda e, n=name: self.rename_sequence(n))
+
+        dur_var = tk.StringVar(value=str(self.sequences[name]['duration']))
+        dur_entry = ttk.Entry(frame, textvariable=dur_var, width=5)
+        dur_entry.pack(side=tk.LEFT, padx=5)
+
+        # Sauvegarde la durée à chaque changement
+        def update_duration(*args):
+            val = dur_var.get()
+            if val.isdigit() and int(val) > 0:
+                self.sequences[name]['duration'] = int(val)
+            else:
+                # Remet à la valeur précédente si invalide
+                dur_var.set(str(self.sequences[name]['duration']))
+        dur_var.trace_add("write", update_duration)
+
+        load_btn = ttk.Button(frame, text="Charger", command=lambda n=name: self.load_sequence(n))
+        load_btn.pack(side=tk.LEFT, padx=5)
+
+        del_btn = ttk.Button(frame, text="Supprimer", command=lambda n=name, f=frame: self.delete_sequence(n, f))
+        del_btn.pack(side=tk.LEFT)
+
+        self.sequence_buttons.append((frame, name))
+
+    def rename_sequence(self, old_name):
+        new_name = simpledialog.askstring("Renommer la séquence", "Entrez le nouveau nom :", initialvalue=old_name)
+        if new_name and new_name != old_name:
+            if new_name in self.sequences:
+                messagebox.showerror("Erreur", "Ce nom existe déjà.")
+                return
+            # Renommer la séquence
+            self.sequences[new_name] = self.sequences.pop(old_name)
+            # Met à jour le bouton
+            for frame, name in self.sequence_buttons:
+                if name == old_name:
+                    for child in frame.winfo_children():
+                        if isinstance(child, ttk.Button) and child.cget("text") == old_name:
+                            child.config(text=new_name)
+                    # Met à jour la liste interne
+                    idx = self.sequence_buttons.index((frame, name))
+                    self.sequence_buttons[idx] = (frame, new_name)
+                    break
+
+    def delete_sequence(self, name, frame):
+        if messagebox.askyesno("Confirmer la suppression", f"Supprimer la séquence '{name}' ?"):
+            if name in self.sequences:
+                del self.sequences[name]
+            frame.destroy()
+            self.sequence_buttons = [t for t in self.sequence_buttons if t[1] != name]
+
+    def load_sequence(self, name):
+        if name in self.sequences:
+            snapshot = self.sequences[name]['powers']
+            for cell_id in self.fan_status:
+                for i in range(9):
+                    self.fan_status[cell_id]['power'][i] = snapshot[cell_id][i]
+                    btn = self.fan_status[cell_id][f"btn_{i}"]
+                    power = snapshot[cell_id][i]
+                    btn.config(text=f"{power}%", bg="green" if power > 0 else "SystemButtonFace",
+                               fg="white" if power > 0 else "black")
+            self.selected_fans.clear()
 
 if __name__ == "__main__":
     root = tk.Tk()
     app = GVMControlApp(root)
     root.mainloop()
-
