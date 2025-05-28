@@ -143,7 +143,7 @@ class GVMControlApp:
         ttk.Label(legend_frame, text="Légende:").grid(row=0, column=0, padx=5)
         tk.Label(legend_frame, text="   Normal   ", bg="green", fg="white").grid(row=0, column=1, padx=5)
         tk.Label(legend_frame, text="   Erreur   ", bg="red", fg="white").grid(row=0, column=2, padx=5)
-        tk.Label(legend_frame, text="   Inactif   ", bg="yello").grid(row=0, column=3, padx=5)
+        tk.Label(legend_frame, text="   Inactif   ", bg="lightgrey").grid(row=0, column=3, padx=5)
 
     def create_fan_grid(self, parent, mode):
         if hasattr(self, f'{mode}_grid_frame'):
