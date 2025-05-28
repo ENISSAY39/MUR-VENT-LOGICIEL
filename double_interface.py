@@ -13,7 +13,6 @@ class GVMControlApp:
         self.grid_rows = 3
         self.grid_cols = 3
         self.fan_status = {}
-        self.publish_cell = 24
         self.current_mode = "percentage"
         self.selected_fans = set()
         self.sequences = {}  # {name: {'powers': {...}, 'duration': int}}
@@ -97,11 +96,6 @@ class GVMControlApp:
         ttk.Button(buttons_frame, text="Appliquer à sélection", command=self.apply_power_selected).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Appliquer à tous", command=self.apply_power_all).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Arrêter tout", command=self.stop_all).pack(pady=5, ipadx=10, ipady=5)
-        ttk.Button(buttons_frame, text="Générer JSON", command=self.show_json).pack(pady=5, ipadx=10, ipady=5)
-
-        ttk.Label(buttons_frame, text="Cellule de publication:").pack(pady=(20, 5))
-        self.publish_var = tk.StringVar(value=str(self.publish_cell))
-        ttk.Entry(buttons_frame, textvariable=self.publish_var, width=5).pack()
 
         # RIGHT SIDE: Sequences
         sequence_frame = ttk.Frame(container)
@@ -250,31 +244,6 @@ class GVMControlApp:
                                 btn.config(text="0 RPM", bg="SystemButtonFace", fg="black")
                             else:
                                 btn.config(text=f"{rpm} RPM", bg="green" if functional else "red", fg="white")
-
-    def show_json(self):
-        json_str = self.generate_command_json()
-        json_window = tk.Toplevel(self.root)
-        json_window.title("Commande JSON")
-        text_widget = tk.Text(json_window, wrap=tk.WORD)
-        text_widget.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        text_widget.insert(tk.END, json_str)
-        text_widget.config(state=tk.DISABLED)
-        ttk.Button(json_window, text="Fermer", command=json_window.destroy).pack(pady=10)
-
-    def generate_command_json(self):
-        command = {
-            "publish_cell": int(self.publish_var.get()) if self.publish_var.get().isdigit() else 24,
-            "fan_power": {},
-            "sequences": {}
-        }
-        for cell_id in self.fan_status:
-            command["fan_power"][cell_id] = self.fan_status[cell_id]['power']
-        for name, data in self.sequences.items():
-            command["sequences"][name] = {
-                "powers": data['powers'],
-                "duration": data['duration']
-            }
-        return json.dumps(command, indent=2)
 
     def create_sequence(self):
         # Demande la durée (en secondes) via une fenêtre modale
