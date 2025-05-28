@@ -326,13 +326,18 @@ class GVMControlApp:
             if val.isdigit() and int(val) > 0:
                 self.sequences[name]['duration'] = int(val)
             else:
-                # Remet à la valeur précédente si invalide
                 dur_var.set(str(self.sequences[name]['duration']))
         dur_var.trace_add("write", update_duration)
 
+        # Bouton "Charger"
         load_btn = ttk.Button(frame, text="Charger", command=lambda n=name: self.load_sequence(n))
         load_btn.pack(side=tk.LEFT, padx=5)
 
+        # 🔹 Bouton "Enregistrer modifs"
+        save_btn = ttk.Button(frame, text="Enregistrer modifs", command=lambda n=name: self.save_current_grid_to_sequence(n))
+        save_btn.pack(side=tk.LEFT, padx=5)
+
+        # Bouton "Supprimer"
         del_btn = ttk.Button(frame, text="Supprimer", command=lambda n=name, f=frame: self.delete_sequence(n, f))
         del_btn.pack(side=tk.LEFT)
 
@@ -374,6 +379,14 @@ class GVMControlApp:
                 del self.sequences[name]
             frame.destroy()
             self.sequence_buttons = [t for t in self.sequence_buttons if t[1] != name]
+
+    def save_current_grid_to_sequence(self, name):
+        if name in self.sequences:
+            new_snapshot = {
+                cell_id: self.fan_status[cell_id]['power'][:] for cell_id in self.fan_status
+            }
+            self.sequences[name]['powers'] = new_snapshot
+            messagebox.showinfo("Modifications enregistrées", f"La séquence '{name}' a été mise à jour.")
 
     def load_sequence(self, name):
         if name in self.sequences:
