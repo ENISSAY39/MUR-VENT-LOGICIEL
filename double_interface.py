@@ -1,9 +1,11 @@
 import tkinter as tk
-from tkinter import ttk, simpledialog, messagebox
+from tkinter import ttk, simpledialog, messagebox, filedialog
 import json
 import threading
 import time
 import random
+import os
+
 
 class GVMControlApp:
     def __init__(self, root):
@@ -117,6 +119,10 @@ class GVMControlApp:
 
         if not hasattr(self, 'back_button'):
             self.back_button = ttk.Button(self.root, text="Retour à l'accueil", command=self.show_home)
+
+        ttk.Button(sequence_frame, text="Sauvegarder profil", command=self.sauvegarder_profil).pack(pady=2, ipadx=10, ipady=5)
+        ttk.Button(sequence_frame, text="Charger profil", command=self.charger_profil).pack(pady=2, ipadx=10, ipady=5)
+
 
     def create_monitor_interface(self):
         main_frame = ttk.Frame(self.monitor_frame, padding="10")
@@ -369,9 +375,50 @@ class GVMControlApp:
                                fg="white" if power > 0 else "black")
             self.selected_fans.clear()
 
+    def sauvegarder_profil(self):
+        # Demande du nom du profil
+        profil_nom = simpledialog.askstring("Nom du profil", "Entrez un nom pour le profil :")
+        if not profil_nom:
+            return
+
+        # Sélection du dossier
+        dossier = filedialog.askdirectory(title="Choisissez un dossier de sauvegarde")
+        if not dossier:
+            return
+
+        chemin_fichier = os.path.join(dossier, f"{profil_nom}.json")
+
+        try:
+            with open(chemin_fichier, "w") as f:
+                json.dump(self.sequences, f, indent=2)
+            messagebox.showinfo("Succès", f"Profil enregistré : {chemin_fichier}")
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Échec de l'enregistrement : {e}")
+
+    def charger_profil(self):
+        filepath = tk.filedialog.askopenfilename(filetypes=[("Fichiers JSON", "*.json")])
+        if filepath:
+            try:
+                with open(filepath, "r") as f:
+                    loaded_sequences = json.load(f)
+                self.sequences = loaded_sequences
+                self.actualiser_sequence_buttons()
+                messagebox.showinfo("Succès", "Le profil a été chargé avec succès.")
+            except Exception as e:
+                messagebox.showerror("Erreur", f"Échec du chargement du profil : {e}")
+
+    def actualiser_sequence_buttons(self):
+        # Nettoyer l'interface
+        for widget in self.sequence_buttons_frame.winfo_children():
+            widget.destroy()
+        self.sequence_buttons.clear()
+        
+        # Recréer les boutons
+        for name in self.sequences:
+            self.add_sequence_button(name)
+
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = GVMControlApp(root)
     root.mainloop()
-
-
