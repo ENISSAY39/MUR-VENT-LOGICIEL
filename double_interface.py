@@ -312,6 +312,10 @@ class GVMControlApp:
         btn.pack(side=tk.LEFT)
         btn.bind("<Double-Button-1>", lambda e, n=name: self.rename_sequence(n))
 
+        # Ajout du label "Temps"
+        time_label = ttk.Label(frame, text="Temps")
+        time_label.pack(side=tk.LEFT, padx=(10, 2)) 
+
         dur_var = tk.StringVar(value=str(self.sequences[name]['duration']))
         dur_entry = ttk.Entry(frame, textvariable=dur_var, width=5)
         dur_entry.pack(side=tk.LEFT, padx=5)
@@ -340,15 +344,26 @@ class GVMControlApp:
             if new_name in self.sequences:
                 messagebox.showerror("Erreur", "Ce nom existe déjà.")
                 return
-            # Renommer la séquence
+
+            # Renommer dans le dictionnaire
             self.sequences[new_name] = self.sequences.pop(old_name)
-            # Met à jour le bouton
+
+            # Met à jour l'interface
             for frame, name in self.sequence_buttons:
                 if name == old_name:
                     for child in frame.winfo_children():
+                        # Met à jour le nom affiché sur le bouton
                         if isinstance(child, ttk.Button) and child.cget("text") == old_name:
                             child.config(text=new_name)
-                    # Met à jour la liste interne
+                            child.bind("<Double-Button-1>", lambda e, n=new_name: self.rename_sequence(n))
+
+                        # Recharge les boutons "Charger" et "Supprimer"
+                        if isinstance(child, ttk.Button) and child.cget("text") == "Charger":
+                            child.config(command=lambda n=new_name: self.load_sequence(n))
+                        if isinstance(child, ttk.Button) and child.cget("text") == "Supprimer":
+                            child.config(command=lambda n=new_name, f=frame: self.delete_sequence(n, f))
+
+                    # Met à jour le nom dans la liste interne
                     idx = self.sequence_buttons.index((frame, name))
                     self.sequence_buttons[idx] = (frame, new_name)
                     break
