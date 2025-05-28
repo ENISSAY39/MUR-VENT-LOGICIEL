@@ -137,7 +137,7 @@ class GVMControlApp:
         ttk.Label(legend_frame, text="Légende:").grid(row=0, column=0, padx=5)
         tk.Label(legend_frame, text="   Normal   ", bg="green", fg="white").grid(row=0, column=1, padx=5)
         tk.Label(legend_frame, text="   Erreur   ", bg="red", fg="white").grid(row=0, column=2, padx=5)
-        tk.Label(legend_frame, text="   Inactif   ", bg="SystemButtonFace").grid(row=0, column=3, padx=5)
+        tk.Label(legend_frame, text="   Inactif   ", bg="lightgrey").grid(row=0, column=3, padx=5)
 
     def create_fan_grid(self, parent, mode):
         if hasattr(self, f'{mode}_grid_frame'):
@@ -190,7 +190,7 @@ class GVMControlApp:
             if power > 0:
                 btn.config(bg="green" if functional else "red", fg="white")
             else:
-                btn.config(bg="SystemButtonFace", fg="black")
+                btn.config(bg="lightgrey", fg="black")
         else:
             self.selected_fans.add(fan_key)
             btn.config(bg="blue", fg="white")
@@ -202,7 +202,7 @@ class GVMControlApp:
         for cell_id, fan_idx in self.selected_fans:
             self.fan_status[cell_id]['power'][fan_idx] = power
             btn = self.fan_status[cell_id][f"btn_{fan_idx}"]
-            btn.config(text=f"{power}%", bg="green" if power > 0 else "SystemButtonFace",
+            btn.config(text=f"{power}%", bg="green" if power > 0 else "lightgrey",
                        fg="white" if power > 0 else "black")
         self.selected_fans.clear()
 
@@ -213,7 +213,7 @@ class GVMControlApp:
             for fan_idx in range(9):
                 self.fan_status[cell_id]['power'][fan_idx] = power
                 btn = self.fan_status[cell_id][f"btn_{fan_idx}"]
-                btn.config(text=f"{power}%", bg="green" if power > 0 else "SystemButtonFace",
+                btn.config(text=f"{power}%", bg="green" if power > 0 else "lightgrey",
                            fg="white" if power > 0 else "black")
 
     def stop_all(self):
@@ -223,7 +223,7 @@ class GVMControlApp:
             for fan_idx in range(9):
                 self.fan_status[cell_id]['power'][fan_idx] = 0
                 btn = self.fan_status[cell_id][f"btn_{fan_idx}"]
-                btn.config(text="0%", bg="SystemButtonFace", fg="black")
+                btn.config(text="0%", bg="lightgrey", fg="black")
 
     def update_rpm_data(self):
         while True:
@@ -241,7 +241,7 @@ class GVMControlApp:
                             expected = power * 10
                             functional = abs(rpm - expected) <= 500
                             if power == 0:
-                                btn.config(text="0 RPM", bg="SystemButtonFace", fg="black")
+                                btn.config(text="0 RPM", bg="lightgrey", fg="black")
                             else:
                                 btn.config(text=f"{rpm} RPM", bg="green" if functional else "red", fg="white")
 
@@ -271,7 +271,7 @@ class GVMControlApp:
             for fan_idx in range(9):
                 self.fan_status[cell_id]['power'][fan_idx] = 0
                 btn = self.fan_status[cell_id][f"btn_{fan_idx}"]
-                btn.config(text="0%", bg="SystemButtonFace", fg="black")
+                btn.config(text="0%", bg="lightgrey", fg="black")
 
     def add_sequence_button(self, name):
         frame = ttk.Frame(self.sequence_buttons_frame)
@@ -365,7 +365,7 @@ class GVMControlApp:
                     self.fan_status[cell_id]['power'][i] = snapshot[cell_id][i]
                     btn = self.fan_status[cell_id][f"btn_{i}"]
                     power = snapshot[cell_id][i]
-                    btn.config(text=f"{power}%", bg="green" if power > 0 else "SystemButtonFace",
+                    btn.config(text=f"{power}%", bg="green" if power > 0 else "lightgrey",
                                fg="white" if power > 0 else "black")
             self.selected_fans.clear()
 
