@@ -115,7 +115,7 @@ class GVMControlApp:
 
         ttk.Button(buttons_frame, text="Appliquer à sélection", command=self.apply_power_selected).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Appliquer à tous", command=self.apply_power_all).pack(pady=5, ipadx=10, ipady=5)
-        ttk.Button(buttons_frame, text="Arrêter tout", command=self.stop_all).pack(pady=5, ipadx=10, ipady=5)
+        ttk.Button(buttons_frame, text="Reset la grille", command=self.reset_grille).pack(pady=5, ipadx=10, ipady=5)
 
         # RIGHT SIDE: Sequences
         sequence_frame = ttk.Frame(container)
@@ -253,14 +253,18 @@ class GVMControlApp:
                            fg="white" if power > 0 else "black")
         self.mark_as_modified()
 
-    def stop_all(self):
-        self.power_var.set(0)
-        self.selected_fans.clear()
-        for cell_id in self.fan_status:
-            for fan_idx in range(9):
-                self.fan_status[cell_id]['power'][fan_idx] = 0
-                btn = self.fan_status[cell_id][f"btn_{fan_idx}"]
-                btn.config(text="0%", bg="lightgrey", fg="black")
+    def reset_grille(self):
+        self.mark_as_modified()
+        self.selected_fans.clear()  # Désélectionne tous les ventilateurs
+
+        for cell_id, data in self.fan_status.items():
+            data['power'] = [0] * 9  # Remet les puissances à 0
+
+            for i in range(9):
+                btn_key = f"btn_{i}"
+                if btn_key in data:
+                    btn = data[btn_key]
+                    btn.config(text="0%", bg="lightgrey", fg="black")  # Réinitialise le texte et la couleur
 
     def update_rpm_data(self):
         while True:
