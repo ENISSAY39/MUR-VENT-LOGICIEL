@@ -170,11 +170,17 @@ class GVMControlApp:
                 cell_id = f"{cell_row}{cell_col}"
                 cell_frame = ttk.LabelFrame(grid_frame, text=f"Cell {cell_id}", padding="5")
                 cell_frame.grid(row=cell_row - 1, column=cell_col - 1, padx=2, pady=2, sticky="nsew")
+                cell_frame.configure(width=150, height=150)  # ajuster la taille au besoin
+                cell_frame.grid_propagate(False)
+
+                for k in range(3):
+                    cell_frame.columnconfigure(k, weight=1)
+                    cell_frame.rowconfigure(k, weight=1)
 
                 for fan_row in range(3):
                     for fan_col in range(3):
                         fan_idx = fan_row * 3 + fan_col
-                        btn = tk.Button(cell_frame, width=8, height=2)
+                        btn = tk.Button(cell_frame, text="0%" if mode == "percentage" else "0 RPM")
 
                         if mode == "percentage":
                             btn.config(text="0%",
@@ -183,7 +189,7 @@ class GVMControlApp:
                         else:
                             btn.config(text="0 RPM")
 
-                        btn.grid(row=fan_row, column=fan_col, padx=1, pady=1)
+                        btn.grid(row=fan_row, column=fan_col, padx=1, pady=1, sticky="nsew")
 
                         key = f"btn_{fan_idx}" if mode == "percentage" else f"rpm_btn_{fan_idx}"
                         self.fan_status[cell_id][key] = btn
@@ -441,6 +447,8 @@ class GVMControlApp:
                 self.is_modified = False
                 self.update_profile_label()
             elif profil_type == "statique":
+                self.sequences.clear()
+                self.actualiser_sequence_buttons()
                 grid_data = data.get("grid", {})
                 for cell_id in self.fan_status:
                     if cell_id in grid_data:
