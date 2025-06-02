@@ -91,11 +91,27 @@ class GVMControlApp:
         ttk.Label(buttons_frame, text="Puissance (%):").pack(pady=(10, 0))
 
         self.power_var = tk.IntVar(value=0)
-        power_slider = ttk.Scale(buttons_frame, from_=0, to=100, variable=self.power_var,
-                                 command=lambda v: self.power_label.config(text=f"{int(float(v))}%"))
+
+        def on_slider_change(v):
+            val = int(float(v))
+            self.power_entry_var.set(str(val))  # Met à jour le champ Entry
+
+        def on_entry_change(*args):
+            try:
+                val = int(self.power_entry_var.get())
+                val = max(0, min(100, val))  # Clamp entre 0 et 100
+                self.power_var.set(val)
+            except ValueError:
+                pass  # Ignore l'entrée invalide
+
+        power_slider = ttk.Scale(buttons_frame, from_=0, to=100, variable=self.power_var, command=on_slider_change)
         power_slider.pack(padx=5)
-        self.power_label = ttk.Label(buttons_frame, text="0%")
-        self.power_label.pack(pady=(0, 10))
+
+        self.power_entry_var = tk.StringVar(value="0")
+        self.power_entry_var.trace_add("write", on_entry_change)
+
+        power_entry = ttk.Entry(buttons_frame, textvariable=self.power_entry_var, width=5, justify='center')
+        power_entry.pack(pady=5)
 
         ttk.Button(buttons_frame, text="Appliquer à sélection", command=self.apply_power_selected).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Appliquer à tous", command=self.apply_power_all).pack(pady=5, ipadx=10, ipady=5)
