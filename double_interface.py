@@ -12,6 +12,8 @@ class GVMControlApp:
         self.root = root
         self.root.title("Contrôle GVM - Système de Ventilation Modulaire")
 
+        self.profile_name = "Nouveau Profil"
+        self.is_modified = False
         self.grid_rows = 3
         self.grid_cols = 3
         self.fan_status = {}
@@ -111,10 +113,13 @@ class GVMControlApp:
         self.sequence_buttons_frame.pack()
 
         ttk.Button(sequence_frame, text="Créer séquence", command=self.create_sequence).pack(pady=10, ipadx=10, ipady=5)
-
+        
+        self.profile_label = ttk.Label(container, text=f"Profil: {self.profile_name}", font=('Helvetica', 10))
+        self.profile_label.pack(side=tk.TOP, pady=(0, 5))
+        
         grid_frame = ttk.Frame(container)
         grid_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
+        
         self.create_fan_grid(grid_frame, "percentage")
 
         if not hasattr(self, 'back_button'):
@@ -123,6 +128,8 @@ class GVMControlApp:
         ttk.Button(sequence_frame, text="Sauvegarder profil", command=self.sauvegarder_profil).pack(pady=2, ipadx=10, ipady=5)
         ttk.Button(sequence_frame, text="Charger profil", command=self.charger_profil).pack(pady=2, ipadx=10, ipady=5)
 
+    def update_profile_label(self):
+        self.profile_label.config(text=f"Profil: {self.profile_name}")
 
     def create_monitor_interface(self):
         main_frame = ttk.Frame(self.monitor_frame, padding="10")
@@ -211,6 +218,7 @@ class GVMControlApp:
             btn.config(text=f"{power}%", bg="green" if power > 0 else "lightgrey",
                        fg="white" if power > 0 else "black")
         self.selected_fans.clear()
+        self.mark_as_modified()
 
     def apply_power_all(self):
         power = self.power_var.get()
@@ -221,6 +229,7 @@ class GVMControlApp:
                 btn = self.fan_status[cell_id][f"btn_{fan_idx}"]
                 btn.config(text=f"{power}%", bg="green" if power > 0 else "lightgrey",
                            fg="white" if power > 0 else "black")
+        self.mark_as_modified()
 
     def stop_all(self):
         self.power_var.set(0)
@@ -271,6 +280,7 @@ class GVMControlApp:
         self.sequences[name] = {'powers': snapshot, 'duration': duration}
         self.add_sequence_button(name)
         self.reset_grid()
+        self.mark_as_modified()
 
     def reset_grid(self):
         for cell_id in self.fan_status:
@@ -352,6 +362,7 @@ class GVMControlApp:
         if messagebox.askyesno("Confirmer la suppression", f"Supprimer la séquence '{name}' ?"):
             if name in self.sequences:
                 del self.sequences[name]
+                self.mark_as_modified()
             frame.destroy()
             self.sequence_buttons = [t for t in self.sequence_buttons if t[1] != name]
 
@@ -362,6 +373,7 @@ class GVMControlApp:
             }
             self.sequences[name]['powers'] = new_snapshot
             messagebox.showinfo("Modifications enregistrées", f"La séquence '{name}' a été mise à jour.")
+            self.mark_as_modified()
 
     def load_sequence(self, name):
         if name in self.sequences:
@@ -425,6 +437,9 @@ class GVMControlApp:
                 self.sequences = data.get("sequences", {})
                 self.actualiser_sequence_buttons()
                 messagebox.showinfo("Chargé", "Profil dynamique chargé avec succès.")
+                self.profile_name = os.path.splitext(os.path.basename(filepath))[0]
+                self.is_modified = False
+                self.update_profile_label()
             elif profil_type == "statique":
                 grid_data = data.get("grid", {})
                 for cell_id in self.fan_status:
@@ -438,11 +453,19 @@ class GVMControlApp:
                                         fg="white" if power > 0 else "black")
                 self.selected_fans.clear()
                 messagebox.showinfo("Chargé", "Profil statique chargé avec succès.")
+                self.profile_name = os.path.splitext(os.path.basename(filepath))[0]
+                self.is_modified = False
+                self.update_profile_label()
             else:
                 raise ValueError("Type de profil inconnu.")
         except Exception as e:
             messagebox.showerror("Erreur", f"Échec du chargement du profil : {e}")
 
+    def mark_as_modified(self):
+        if not self.is_modified:
+            self.is_modified = True
+            self.profile_name = "Nouveau Profil"
+            self.update_profile_label()
 
     def actualiser_sequence_buttons(self):
         # Nettoyer l'interface
