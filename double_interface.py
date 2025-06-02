@@ -17,7 +17,7 @@ class GVMControlApp:
         self.grid_rows = 3
         self.grid_cols = 3
         self.fan_status = {}
-        self.current_mode = "percentage"
+        self.current_mode = "create"
         self.selected_fans = set()
         self.sequences = {}  # {name: {'powers': {...}, 'duration': int}}
         self.sequence_buttons = []
@@ -33,10 +33,10 @@ class GVMControlApp:
         self.home_frame = ttk.Frame(self.root)
 
         ttk.Label(self.home_frame, text="Système de Contrôle GVM", font=('Helvetica', 16)).pack(pady=20)
-        ttk.Button(self.home_frame, text="Mode Contrôle (Puissance %)",
-                   command=lambda: self.show_grid_mode("percentage")).pack(pady=10, ipadx=20, ipady=10)
-        ttk.Button(self.home_frame, text="Mode Surveillance (RPM)",
-                   command=lambda: self.show_grid_mode("rpm")).pack(pady=10, ipadx=20, ipady=10)
+        ttk.Button(self.home_frame, text="Création de profil",
+                   command=lambda: self.show_grid_mode("create")).pack(pady=10, ipadx=20, ipady=10)
+        ttk.Button(self.home_frame, text="Execution de profil",
+                   command=lambda: self.show_grid_mode("execute")).pack(pady=10, ipadx=20, ipady=10)
 
         self.control_frame = ttk.Frame(self.root)
         self.create_control_interface()
@@ -52,7 +52,7 @@ class GVMControlApp:
         self.current_mode = mode
         self.hide_all_frames()
 
-        if mode == "percentage":
+        if mode == "create":
             self.control_frame.pack(fill=tk.BOTH, expand=True)
         else:
             self.monitor_frame.pack(fill=tk.BOTH, expand=True)
@@ -136,7 +136,7 @@ class GVMControlApp:
         grid_frame = ttk.Frame(container)
         grid_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        self.create_fan_grid(grid_frame, "percentage")
+        self.create_fan_grid(grid_frame, "create")
 
         if not hasattr(self, 'back_button'):
             self.back_button = ttk.Button(self.root, text="Retour à l'accueil", command=self.show_home)
@@ -154,12 +154,12 @@ class GVMControlApp:
         grid_frame = ttk.Frame(main_frame)
         grid_frame.pack(fill=tk.BOTH, expand=True)
 
-        self.create_fan_grid(grid_frame, "rpm")
+        self.create_fan_grid(grid_frame, "execute")
 
         control_frame = ttk.Frame(main_frame)
         control_frame.pack(fill=tk.X, pady=10)
 
-        ttk.Label(control_frame, text="Mode Surveillance RPM", font=('Helvetica', 12)).pack()
+        ttk.Label(control_frame, text="Execution de profil", font=('Helvetica', 12)).pack()
 
         legend_frame = ttk.Frame(control_frame)
         legend_frame.pack(pady=5)
@@ -196,9 +196,9 @@ class GVMControlApp:
                 for fan_row in range(3):
                     for fan_col in range(3):
                         fan_idx = fan_row * 3 + fan_col
-                        btn = tk.Button(cell_frame, text="0%" if mode == "percentage" else "0 RPM")
+                        btn = tk.Button(cell_frame, text="0%" if mode == "create" else "0 RPM")
 
-                        if mode == "percentage":
+                        if mode == "create":
                             btn.config(text="0%",
                                        command=lambda cr=cell_row, cc=cell_col, fr=fan_row + 1, fc=fan_col + 1:
                                        self.select_fan(cr, cc, fr, fc))
@@ -207,7 +207,7 @@ class GVMControlApp:
 
                         btn.grid(row=fan_row, column=fan_col, padx=1, pady=1, sticky="nsew")
 
-                        key = f"btn_{fan_idx}" if mode == "percentage" else f"rpm_btn_{fan_idx}"
+                        key = f"btn_{fan_idx}" if mode == "create" else f"rpm_btn_{fan_idx}"
                         self.fan_status[cell_id][key] = btn
 
     def select_fan(self, cell_row, cell_col, fan_row, fan_col):
@@ -276,7 +276,7 @@ class GVMControlApp:
                     rpm = max(rpm, 0)
                     self.fan_status[cell_id]['rpm'][fan_idx] = rpm
 
-                    if self.current_mode == "rpm":
+                    if self.current_mode == "execute":
                         btn = self.fan_status[cell_id].get(f"rpm_btn_{fan_idx}")
                         if btn:
                             expected = power * 10
