@@ -376,12 +376,10 @@ class GVMControlApp:
             self.selected_fans.clear()
 
     def sauvegarder_profil(self):
-        # Demande du nom du profil
         profil_nom = simpledialog.askstring("Nom du profil", "Entrez un nom pour le profil :")
         if not profil_nom:
             return
 
-        # Sélection du dossier
         dossier = filedialog.askdirectory(title="Choisissez un dossier de sauvegarde")
         if not dossier:
             return
@@ -389,23 +387,62 @@ class GVMControlApp:
         chemin_fichier = os.path.join(dossier, f"{profil_nom}.json")
 
         try:
+            if self.sequences:
+                # Profil Dynamique
+                data = {
+                    "type": "dynamique",
+                    "sequences": self.sequences
+                }
+            else:
+                # Profil Statique
+                grid_snapshot = {
+                    cell_id: self.fan_status[cell_id]['power'][:] for cell_id in self.fan_status
+                }
+                data = {
+                    "type": "statique",
+                    "grid": grid_snapshot
+                }
+
             with open(chemin_fichier, "w") as f:
-                json.dump(self.sequences, f, indent=2)
+                json.dump(data, f, indent=2)
+
             messagebox.showinfo("Succès", f"Profil enregistré : {chemin_fichier}")
         except Exception as e:
             messagebox.showerror("Erreur", f"Échec de l'enregistrement : {e}")
 
     def charger_profil(self):
         filepath = tk.filedialog.askopenfilename(filetypes=[("Fichiers JSON", "*.json")])
-        if filepath:
-            try:
-                with open(filepath, "r") as f:
-                    loaded_sequences = json.load(f)
-                self.sequences = loaded_sequences
+        if not filepath:
+            return
+
+        try:
+            with open(filepath, "r") as f:
+                data = json.load(f)
+
+            profil_type = data.get("type")
+
+            if profil_type == "dynamique":
+                self.sequences = data.get("sequences", {})
                 self.actualiser_sequence_buttons()
-                messagebox.showinfo("Succès", "Le profil a été chargé avec succès.")
-            except Exception as e:
-                messagebox.showerror("Erreur", f"Échec du chargement du profil : {e}")
+                messagebox.showinfo("Chargé", "Profil dynamique chargé avec succès.")
+            elif profil_type == "statique":
+                grid_data = data.get("grid", {})
+                for cell_id in self.fan_status:
+                    if cell_id in grid_data:
+                        for i in range(9):
+                            power = grid_data[cell_id][i]
+                            self.fan_status[cell_id]['power'][i] = power
+                            btn = self.fan_status[cell_id].get(f"btn_{i}")
+                            if btn:
+                                btn.config(text=f"{power}%", bg="green" if power > 0 else "lightgrey",
+                                        fg="white" if power > 0 else "black")
+                self.selected_fans.clear()
+                messagebox.showinfo("Chargé", "Profil statique chargé avec succès.")
+            else:
+                raise ValueError("Type de profil inconnu.")
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Échec du chargement du profil : {e}")
+
 
     def actualiser_sequence_buttons(self):
         # Nettoyer l'interface
