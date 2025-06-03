@@ -148,25 +148,84 @@ class GVMControlApp:
         self.profile_label.config(text=f"Profil: {self.profile_name}")
 
     def create_monitor_interface(self):
+        # Frame principale pour la page "execute"
         main_frame = ttk.Frame(self.monitor_frame, padding="10")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        grid_frame = ttk.Frame(main_frame)
-        grid_frame.pack(fill=tk.BOTH, expand=True)
+        container = ttk.Frame(main_frame)
+        container.pack(fill=tk.BOTH, expand=True)
 
+        # ---------------------------
+        # 🔹 Panneau de contrôle gauche
+        # ---------------------------
+        buttons_frame = ttk.Frame(container)
+        buttons_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
+
+        ttk.Label(buttons_frame, text="Contrôles", font=('Helvetica', 12)).pack(pady=5)
+        ttk.Label(buttons_frame, text="Puissance (%):").pack(pady=(10, 0))
+
+        self.power_var = tk.IntVar(value=0)
+
+        def on_slider_change(v):
+            val = int(float(v))
+            self.power_entry_var.set(str(val))
+
+        def on_entry_change(*args):
+            try:
+                val = int(self.power_entry_var.get())
+                val = max(0, min(100, val))
+                self.power_var.set(val)
+            except ValueError:
+                pass
+
+        power_slider = ttk.Scale(buttons_frame, from_=0, to=100, variable=self.power_var, command=on_slider_change)
+        power_slider.pack(padx=5)
+
+        self.power_entry_var = tk.StringVar(value="0")
+        self.power_entry_var.trace_add("write", on_entry_change)
+
+        power_entry = ttk.Entry(buttons_frame, textvariable=self.power_entry_var, width=5, justify='center')
+        power_entry.pack(pady=5)
+
+        ttk.Button(buttons_frame, text="Appliquer à sélection", command=self.apply_power_selected).pack(pady=5, ipadx=10, ipady=5)
+        ttk.Button(buttons_frame, text="Appliquer à tous", command=self.apply_power_all).pack(pady=5, ipadx=10, ipady=5)
+        ttk.Button(buttons_frame, text="Reset la grille", command=self.reset_grille).pack(pady=5, ipadx=10, ipady=5)
+        ttk.Button(buttons_frame, text="Charger profil", command=self.charger_profil).pack(pady=5, ipadx=10, ipady=5)
+
+        # ---------------------------
+        # 🔹 Grille centrale
+        # ---------------------------
+        grid_frame = ttk.Frame(container)
+        grid_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.create_fan_grid(grid_frame, "execute")
 
+        # ---------------------------
+        # 🔹 Panneau droit (VIDE pour execute)
+        # ---------------------------
+        # Rien ici, pas de séquences affichées
+
+        # ---------------------------
+        # 🔹 En bas : légende
+        # ---------------------------
         control_frame = ttk.Frame(main_frame)
         control_frame.pack(fill=tk.X, pady=10)
 
-        ttk.Label(control_frame, text="Execution de profil", font=('Helvetica', 12)).pack()
+        ttk.Label(control_frame, text="Exécution de profil", font=('Helvetica', 12)).pack()
 
         legend_frame = ttk.Frame(control_frame)
         legend_frame.pack(pady=5)
+
         ttk.Label(legend_frame, text="Légende:").grid(row=0, column=0, padx=5)
         tk.Label(legend_frame, text="   Normal   ", bg="green", fg="white").grid(row=0, column=1, padx=5)
         tk.Label(legend_frame, text="   Erreur   ", bg="red", fg="white").grid(row=0, column=2, padx=5)
         tk.Label(legend_frame, text="   Inactif   ", bg="lightgrey").grid(row=0, column=3, padx=5)
+
+        # ---------------------------
+        # 🔹 Bouton retour (optionnel)
+        # ---------------------------
+        if not hasattr(self, 'back_button'):
+            self.back_button = ttk.Button(self.root, text="Retour à l'accueil", command=self.show_home)
+
 
     def create_fan_grid(self, parent, mode):
         if hasattr(self, f'{mode}_grid_frame'):
