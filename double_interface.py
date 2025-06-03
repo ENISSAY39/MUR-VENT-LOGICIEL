@@ -176,18 +176,18 @@ class GVMControlApp:
         grid_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.create_fan_grid(grid_frame, "execute")
 
-        control_frame = ttk.Frame(main_frame)
-        control_frame.pack(fill=tk.X, pady=10)
+        # control_frame = ttk.Frame(main_frame)
+        # control_frame.pack(fill=tk.X, pady=10)
 
-        ttk.Label(control_frame, text="Exécution de profil", font=('Helvetica', 12)).pack()
+        # ttk.Label(control_frame, text="Exécution de profil", font=('Helvetica', 12)).pack()
 
-        legend_frame = ttk.Frame(control_frame)
-        legend_frame.pack(pady=5)
+        # legend_frame = ttk.Frame(control_frame)
+        # legend_frame.pack(pady=5)
 
-        ttk.Label(legend_frame, text="Légende:").grid(row=0, column=0, padx=5)
-        tk.Label(legend_frame, text="   Normal   ", bg="green", fg="white").grid(row=0, column=1, padx=5)
-        tk.Label(legend_frame, text="   Erreur   ", bg="red", fg="white").grid(row=0, column=2, padx=5)
-        tk.Label(legend_frame, text="   Inactif   ", bg="lightgrey").grid(row=0, column=3, padx=5)
+        # ttk.Label(legend_frame, text="Légende:").grid(row=0, column=0, padx=5)
+        # tk.Label(legend_frame, text="   Normal   ", bg="green", fg="white").grid(row=0, column=1, padx=5)
+        # tk.Label(legend_frame, text="   Erreur   ", bg="red", fg="white").grid(row=0, column=2, padx=5)
+        # tk.Label(legend_frame, text="   Inactif   ", bg="lightgrey").grid(row=0, column=3, padx=5)
 
         # ---------------------------
         # 🔹 Bouton retour (optionnel)
