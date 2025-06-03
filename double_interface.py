@@ -5,7 +5,7 @@ import threading
 import time
 import random
 import os
-
+from functools import partial
 
 class GVMControlApp:
     def __init__(self, root):
@@ -26,8 +26,8 @@ class GVMControlApp:
         self.create_frames()
         self.show_home()
 
-        self.update_thread = threading.Thread(target=self.update_rpm_data, daemon=True)
-        self.update_thread.start()
+        # self.update_thread = threading.Thread(target=self.update_rpm_data, daemon=True)
+        # self.update_thread.start()
 
     def create_frames(self):
         self.home_frame = ttk.Frame(self.root)
@@ -90,32 +90,25 @@ class GVMControlApp:
         ttk.Label(buttons_frame, text="Contrôles", font=('Helvetica', 12)).pack(pady=5)
         ttk.Label(buttons_frame, text="Puissance (%):").pack(pady=(10, 0))
 
-        self.power_var = tk.IntVar(value=0)
+        self.power_var_create = tk.IntVar(value=0)
+        self.power_entry_var_create = tk.StringVar(value="0")
 
-        def on_slider_change(v):
-            val = int(float(v))
-            self.power_entry_var.set(str(val))  # Met à jour le champ Entry
-
-        def on_entry_change(*args):
-            try:
-                val = int(self.power_entry_var.get())
-                val = max(0, min(100, val))  # Clamp entre 0 et 100
-                self.power_var.set(val)
-            except ValueError:
-                pass  # Ignore l'entrée invalide
-
-        power_slider = ttk.Scale(buttons_frame, from_=0, to=100, variable=self.power_var, command=on_slider_change)
+        power_slider = ttk.Scale(
+            buttons_frame,
+            from_=0, to=100,
+            variable=self.power_var_create,
+            command=partial(self.on_slider_change, "create")
+        )
         power_slider.pack(padx=5)
 
-        self.power_entry_var = tk.StringVar(value="0")
-        self.power_entry_var.trace_add("write", on_entry_change)
+        entry = ttk.Entry(buttons_frame, textvariable=self.power_entry_var_create, width=5)
+        entry.pack()
 
-        power_entry = ttk.Entry(buttons_frame, textvariable=self.power_entry_var, width=5, justify='center')
-        power_entry.pack(pady=5)
+        self.power_entry_var_create.trace_add("write", partial(self.on_entry_change, "create"))
 
-        ttk.Button(buttons_frame, text="Appliquer à sélection", command=self.apply_power_selected).pack(pady=5, ipadx=10, ipady=5)
-        ttk.Button(buttons_frame, text="Appliquer à tous", command=self.apply_power_all).pack(pady=5, ipadx=10, ipady=5)
-        ttk.Button(buttons_frame, text="Reset la grille", command=self.reset_grille).pack(pady=5, ipadx=10, ipady=5)
+        ttk.Button(buttons_frame, text="Appliquer à sélection", command=lambda: self.apply_power_selected("create")).pack(pady=5, ipadx=10, ipady=5)
+        ttk.Button(buttons_frame, text="Appliquer à tous", command=lambda: self.apply_power_all("create")).pack(pady=5, ipadx=10, ipady=5)
+        ttk.Button(buttons_frame, text="Reset la grille", command=lambda: self.reset_grille("create")).pack(pady=5, ipadx=10, ipady=5)
 
         # RIGHT SIDE: Sequences
         sequence_frame = ttk.Frame(container)
@@ -144,9 +137,6 @@ class GVMControlApp:
         ttk.Button(sequence_frame, text="Sauvegarder profil", command=self.sauvegarder_profil).pack(pady=2, ipadx=10, ipady=5)
         ttk.Button(sequence_frame, text="Charger profil", command=self.charger_profil).pack(pady=2, ipadx=10, ipady=5)
 
-    def update_profile_label(self):
-        self.profile_label.config(text=f"Profil: {self.profile_name}")
-
     def create_monitor_interface(self):
         # Frame principale pour la page "execute"
         main_frame = ttk.Frame(self.monitor_frame, padding="10")
@@ -155,58 +145,37 @@ class GVMControlApp:
         container = ttk.Frame(main_frame)
         container.pack(fill=tk.BOTH, expand=True)
 
-        # ---------------------------
-        # 🔹 Panneau de contrôle gauche
-        # ---------------------------
         buttons_frame = ttk.Frame(container)
         buttons_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
         ttk.Label(buttons_frame, text="Contrôles", font=('Helvetica', 12)).pack(pady=5)
         ttk.Label(buttons_frame, text="Puissance (%):").pack(pady=(10, 0))
 
-        self.power_var = tk.IntVar(value=0)
+        self.power_var_execute = tk.IntVar(value=0)
+        self.power_entry_var_execute = tk.StringVar(value="0")
 
-        def on_slider_change(v):
-            val = int(float(v))
-            self.power_entry_var.set(str(val))
-
-        def on_entry_change(*args):
-            try:
-                val = int(self.power_entry_var.get())
-                val = max(0, min(100, val))
-                self.power_var.set(val)
-            except ValueError:
-                pass
-
-        power_slider = ttk.Scale(buttons_frame, from_=0, to=100, variable=self.power_var, command=on_slider_change)
+        power_slider = ttk.Scale(
+            buttons_frame,
+            from_=0, to=100,
+            variable=self.power_var_execute,
+            command=partial(self.on_slider_change, "execute")
+        )
         power_slider.pack(padx=5)
 
-        self.power_entry_var = tk.StringVar(value="0")
-        self.power_entry_var.trace_add("write", on_entry_change)
+        entry = ttk.Entry(buttons_frame, textvariable=self.power_entry_var_execute, width=5)
+        entry.pack()
 
-        power_entry = ttk.Entry(buttons_frame, textvariable=self.power_entry_var, width=5, justify='center')
-        power_entry.pack(pady=5)
+        self.power_entry_var_execute.trace_add("write", partial(self.on_entry_change, "execute"))
 
-        ttk.Button(buttons_frame, text="Appliquer à sélection", command=self.apply_power_selected).pack(pady=5, ipadx=10, ipady=5)
-        ttk.Button(buttons_frame, text="Appliquer à tous", command=self.apply_power_all).pack(pady=5, ipadx=10, ipady=5)
-        ttk.Button(buttons_frame, text="Reset la grille", command=self.reset_grille).pack(pady=5, ipadx=10, ipady=5)
+        ttk.Button(buttons_frame, text="Appliquer à sélection", command=lambda: self.apply_power_selected("execute")).pack(pady=5, ipadx=10, ipady=5)
+        ttk.Button(buttons_frame, text="Appliquer à tous", command=lambda: self.apply_power_all("execute")).pack(pady=5, ipadx=10, ipady=5)
+        ttk.Button(buttons_frame, text="Reset la grille", command=lambda: self.reset_grille("execute")).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Charger profil", command=self.charger_profil).pack(pady=5, ipadx=10, ipady=5)
 
-        # ---------------------------
-        # 🔹 Grille centrale
-        # ---------------------------
         grid_frame = ttk.Frame(container)
         grid_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.create_fan_grid(grid_frame, "execute")
 
-        # ---------------------------
-        # 🔹 Panneau droit (VIDE pour execute)
-        # ---------------------------
-        # Rien ici, pas de séquences affichées
-
-        # ---------------------------
-        # 🔹 En bas : légende
-        # ---------------------------
         control_frame = ttk.Frame(main_frame)
         control_frame.pack(fill=tk.X, pady=10)
 
@@ -226,7 +195,24 @@ class GVMControlApp:
         if not hasattr(self, 'back_button'):
             self.back_button = ttk.Button(self.root, text="Retour à l'accueil", command=self.show_home)
 
+    def on_slider_change(self, mode, value):
+        val = int(float(value))
+        entry_var = getattr(self, f"power_entry_var_{mode}")
+        entry_var.set(str(val))
 
+    def on_entry_change(self, mode, *args):
+        try:
+            entry_var = getattr(self, f"power_entry_var_{mode}")
+            power_var = getattr(self, f"power_var_{mode}")
+            val = int(entry_var.get())
+            val = max(0, min(100, val))
+            power_var.set(val)
+        except ValueError:
+            pass
+        
+    def update_profile_label(self):
+        self.profile_label.config(text=f"Profil: {self.profile_name}")
+        
     def create_fan_grid(self, parent, mode):
         if hasattr(self, f'{mode}_grid_frame'):
             getattr(self, f'{mode}_grid_frame').destroy()
@@ -255,25 +241,27 @@ class GVMControlApp:
                 for fan_row in range(3):
                     for fan_col in range(3):
                         fan_idx = fan_row * 3 + fan_col
-                        btn = tk.Button(cell_frame, text="0%" if mode == "create" else "0 RPM")
+                        btn = tk.Button(cell_frame, text="0%")
 
                         if mode == "create":
                             btn.config(text="0%",
                                        command=lambda cr=cell_row, cc=cell_col, fr=fan_row + 1, fc=fan_col + 1:
-                                       self.select_fan(cr, cc, fr, fc))
+                                       self.select_fan(cr, cc, fr, fc,"create"))
                         else:
-                            btn.config(text="0 RPM")
+                            btn.config(text="0%",
+                                       command=lambda cr2=cell_row, cc2=cell_col, fr2=fan_row + 1, fc2=fan_col + 1:
+                                       self.select_fan(cr2, cc2, fr2, fc2,"execute"))
 
                         btn.grid(row=fan_row, column=fan_col, padx=1, pady=1, sticky="nsew")
 
-                        key = f"btn_{fan_idx}" if mode == "create" else f"rpm_btn_{fan_idx}"
+                        key = f"create_btn_{fan_idx}" if mode == "create" else f"execute_btn_{fan_idx}"
                         self.fan_status[cell_id][key] = btn
 
-    def select_fan(self, cell_row, cell_col, fan_row, fan_col):
+    def select_fan(self, cell_row, cell_col, fan_row, fan_col,mode):
         cell_id = f"{cell_row}{cell_col}"
         fan_idx = (fan_row - 1) * 3 + (fan_col - 1)
         fan_key = (cell_id, fan_idx)
-        btn = self.fan_status[cell_id][f"btn_{fan_idx}"]
+        btn = self.fan_status[cell_id][f"create_btn_{fan_idx}" if mode == "create" else f"execute_btn_{fan_idx}"]
 
         if fan_key in self.selected_fans:
             self.selected_fans.remove(fan_key)
@@ -289,30 +277,30 @@ class GVMControlApp:
             self.selected_fans.add(fan_key)
             btn.config(bg="blue", fg="white")
 
-    def apply_power_selected(self):
+    def apply_power_selected(self, mode):
         if not self.selected_fans:
             return
-        power = self.power_var.get()
+        power = self.power_var_create.get() if mode =="create" else self.power_var_execute.get()
         for cell_id, fan_idx in self.selected_fans:
             self.fan_status[cell_id]['power'][fan_idx] = power
-            btn = self.fan_status[cell_id][f"btn_{fan_idx}"]
+            btn = self.fan_status[cell_id][f"create_btn_{fan_idx}" if mode == "create" else f"execute_btn_{fan_idx}"]
             btn.config(text=f"{power}%", bg="green" if power > 0 else "lightgrey",
                        fg="white" if power > 0 else "black")
         self.selected_fans.clear()
         self.mark_as_modified()
 
-    def apply_power_all(self):
-        power = self.power_var.get()
+    def apply_power_all(self, mode):
+        power = self.power_var_create.get() if mode =="create" else self.power_var_execute.get()
         self.selected_fans.clear()
         for cell_id in self.fan_status:
             for fan_idx in range(9):
                 self.fan_status[cell_id]['power'][fan_idx] = power
-                btn = self.fan_status[cell_id][f"btn_{fan_idx}"]
+                btn = self.fan_status[cell_id][f"create_btn_{fan_idx}" if mode == "create" else f"execute_btn_{fan_idx}"]
                 btn.config(text=f"{power}%", bg="green" if power > 0 else "lightgrey",
                            fg="white" if power > 0 else "black")
         self.mark_as_modified()
 
-    def reset_grille(self):
+    def reset_grille(self, mode):
         self.mark_as_modified()
         self.selected_fans.clear()  # Désélectionne tous les ventilateurs
 
@@ -320,30 +308,10 @@ class GVMControlApp:
             data['power'] = [0] * 9  # Remet les puissances à 0
 
             for i in range(9):
-                btn_key = f"btn_{i}"
+                btn_key = f"create_btn_{i}" if mode == "create" else f"execute_btn_{i}"
                 if btn_key in data:
                     btn = data[btn_key]
                     btn.config(text="0%", bg="lightgrey", fg="black")  # Réinitialise le texte et la couleur
-
-    def update_rpm_data(self):
-        while True:
-            time.sleep(1)
-            for cell_id in self.fan_status:
-                for fan_idx in range(9):
-                    power = self.fan_status[cell_id]['power'][fan_idx]
-                    rpm = power * 10 + random.randint(-300, 300)
-                    rpm = max(rpm, 0)
-                    self.fan_status[cell_id]['rpm'][fan_idx] = rpm
-
-                    if self.current_mode == "execute":
-                        btn = self.fan_status[cell_id].get(f"rpm_btn_{fan_idx}")
-                        if btn:
-                            expected = power * 10
-                            functional = abs(rpm - expected) <= 500
-                            if power == 0:
-                                btn.config(text="0 RPM", bg="lightgrey", fg="black")
-                            else:
-                                btn.config(text=f"{rpm} RPM", bg="green" if functional else "red", fg="white")
 
     def create_sequence(self):
         # Demande la durée (en secondes) via une fenêtre modale
@@ -371,7 +339,7 @@ class GVMControlApp:
         for cell_id in self.fan_status:
             for fan_idx in range(9):
                 self.fan_status[cell_id]['power'][fan_idx] = 0
-                btn = self.fan_status[cell_id][f"btn_{fan_idx}"]
+                btn = self.fan_status[cell_id][f"create_btn_{fan_idx}"]
                 btn.config(text="0%", bg="lightgrey", fg="black")
 
     def add_sequence_button(self, name):
@@ -466,7 +434,7 @@ class GVMControlApp:
             for cell_id in self.fan_status:
                 for i in range(9):
                     self.fan_status[cell_id]['power'][i] = snapshot[cell_id][i]
-                    btn = self.fan_status[cell_id][f"btn_{i}"]
+                    btn = self.fan_status[cell_id][f"create_btn_{i}"]
                     power = snapshot[cell_id][i]
                     btn.config(text=f"{power}%", bg="green" if power > 0 else "lightgrey",
                                fg="white" if power > 0 else "black")
@@ -534,7 +502,7 @@ class GVMControlApp:
                         for i in range(9):
                             power = grid_data[cell_id][i]
                             self.fan_status[cell_id]['power'][i] = power
-                            btn = self.fan_status[cell_id].get(f"btn_{i}")
+                            btn = self.fan_status[cell_id].get(f"create_btn_{i}")
                             if btn:
                                 btn.config(text=f"{power}%", bg="green" if power > 0 else "lightgrey",
                                         fg="white" if power > 0 else "black")
