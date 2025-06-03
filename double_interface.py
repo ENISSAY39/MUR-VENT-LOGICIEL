@@ -528,7 +528,7 @@ class GVMControlApp:
             widget.destroy()
         self.sequence_buttons.clear()
         
-        # Recréer les boutons
+        # Recréer les bouton
         for name in self.sequences:
             self.add_sequence_button(name)
 
