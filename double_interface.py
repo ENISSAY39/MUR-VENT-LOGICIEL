@@ -5,6 +5,9 @@ import threading
 import time
 import random
 import os
+import serial
+import queue
+
 from functools import partial
 
 class GVMControlApp:
@@ -12,7 +15,7 @@ class GVMControlApp:
         self.root = root
         self.root.title("Contrôle GVM - Système de Ventilation Modulaire")
 
-        self.profile_name = "Nouveau Profil"
+        self.profile_name = "Aucun profil chargé"
         self.is_modified = False
         self.grid_rows = 3
         self.grid_cols = 3
@@ -145,6 +148,10 @@ class GVMControlApp:
         container = ttk.Frame(main_frame)
         container.pack(fill=tk.BOTH, expand=True)
 
+        self.profile_label_execute = ttk.Label(container, text=f"Profil: {self.profile_name}", font=('Helvetica', 10))
+        self.profile_label_execute.pack(side=tk.TOP, pady=(0, 5))
+
+
         buttons_frame = ttk.Frame(container)
         buttons_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
@@ -171,6 +178,7 @@ class GVMControlApp:
         ttk.Button(buttons_frame, text="Appliquer à tous", command=lambda: self.apply_power_all("execute")).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Reset la grille", command=lambda: self.reset_grille("execute")).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Charger profil", command=self.charger_profil).pack(pady=5, ipadx=10, ipady=5)
+        ttk.Button(buttons_frame, text="Envoyer commande", command=self.start_serial_communication).pack(pady=5, ipadx=10, ipady=5)
 
         grid_frame = ttk.Frame(container)
         grid_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -211,7 +219,10 @@ class GVMControlApp:
             pass
         
     def update_profile_label(self):
-        self.profile_label.config(text=f"Profil: {self.profile_name}")
+        if hasattr(self, 'profile_label'):
+            self.profile_label.config(text=f"Profil: {self.profile_name}")
+        if hasattr(self, 'profile_label_execute'):
+            self.profile_label_execute.config(text=f"Profil: {self.profile_name}")
         
     def create_fan_grid(self, parent, mode):
         if hasattr(self, f'{mode}_grid_frame'):
@@ -532,6 +543,72 @@ class GVMControlApp:
         for name in self.sequences:
             self.add_sequence_button(name)
 
+    def start_serial_communication(self):
+        self.serial_log_window = tk.Toplevel(self.root)
+        self.serial_log_window.title("Envoi des chaînes JSON")
+        self.serial_log_text = tk.Text(self.serial_log_window, height=20, width=80, state='disabled')
+        self.serial_log_text.pack(padx=10, pady=10)
+
+        self.serial_active = True
+        self.serial_queue = queue.Queue()
+
+        # Lance le thread d'envoi série
+        self.serial_thread = threading.Thread(target=self.serial_send_loop, daemon=True)
+        self.serial_thread.start()
+
+        # Rafraîchit l'affichage des logs
+        self.update_serial_log_display()
+
+    def serial_send_loop(self):
+        try:
+            ser = serial.Serial('/dev/serial0', 115200, timeout=1)  # ou /dev/ttyUSB0 selon ton cas
+        except Exception as e:
+            self.serial_queue.put(f"Erreur ouverture port série: {e}")
+            return
+
+        if not self.sequences:
+            self.serial_queue.put("Aucune séquence à exécuter.")
+            return
+
+        try:
+            for seq_name in self.sequences:
+                seq = self.sequences[seq_name]
+                powers = seq['powers']
+                duration = seq['duration']
+                start_time = time.time()
+                end_time = start_time + duration
+
+                self.serial_queue.put(f"⏱ Exécution de la séquence '{seq_name}' pour {duration} secondes")
+
+                while time.time() < end_time and self.serial_active:
+                    for cell_id in powers:
+                        msg = json.dumps({
+                            "cell_id": cell_id,
+                            "speeds": powers[cell_id]
+                        })
+                        try:
+                            ser.write((msg + '\n').encode('utf-8'))
+                            self.serial_queue.put(f"Envoyé → {msg}")
+                        except Exception as e:
+                            self.serial_queue.put(f"Erreur d'envoi: {e}")
+                        time.sleep(0.05)  # Délai entre les cellules
+                    time.sleep(0.5)  # Délai entre chaque boucle complète
+        except Exception as e:
+            self.serial_queue.put(f"Erreur lors de l'exécution des séquences: {e}")
+
+
+    def update_serial_log_display(self):
+        try:
+            while not self.serial_queue.empty():
+                line = self.serial_queue.get_nowait()
+                self.serial_log_text.configure(state='normal')
+                self.serial_log_text.insert(tk.END, line + "\n")
+                self.serial_log_text.configure(state='disabled')
+                self.serial_log_text.see(tk.END)
+        except queue.Empty:
+            pass
+        if self.serial_active:
+            self.root.after(100, self.update_serial_log_display)
 
 if __name__ == "__main__":
     root = tk.Tk()
