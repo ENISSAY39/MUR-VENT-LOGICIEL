@@ -350,7 +350,7 @@ class GVMControlApp:
         for cell_id in self.fan_status:
             for fan_idx in range(9):
                 self.fan_status[cell_id]['power'][fan_idx] = 0
-                btn = self.fan_status[cell_id][f"create_btn_{fan_idx}"]
+                btn = self.fan_status[cell_id][f"create_btn_{fan_idx}" if self.current_mode == "create" else f"execute_btn_{fan_idx}"]
                 btn.config(text="0%", bg="lightgrey", fg="black")
 
     def add_sequence_button(self, name):
@@ -513,7 +513,7 @@ class GVMControlApp:
                         for i in range(9):
                             power = grid_data[cell_id][i]
                             self.fan_status[cell_id]['power'][i] = power
-                            btn = self.fan_status[cell_id].get(f"create_btn_{i}")
+                            btn = self.fan_status[cell_id].get(f"create_btn_{i}" if self.current_mode == "create" else f"execute_btn_{i}")
                             if btn:
                                 btn.config(text=f"{power}%", bg="green" if power > 0 else "lightgrey",
                                         fg="white" if power > 0 else "black")
