@@ -262,12 +262,29 @@ class GVMControlApp:
                             btn.config(text="0%",
                                        command=lambda cr2=cell_row, cc2=cell_col, fr2=fan_row + 1, fc2=fan_col + 1:
                                        self.select_fan(cr2, cc2, fr2, fc2,"execute"))
+                            for i in range(9):
+                                btn_key = f"execute_btn_{i}"
+                                btn = ttk.Button(cell_frame, text="0%")
+                                self.fan_status[cell_id][btn_key] = btn
+                                btn.grid(row=..., column=...)  # selon ton layout
+
+                                def make_tooltip(cell=cell_id, idx=i):
+                                    return lambda: self.get_rpm_text(cell, idx)
+
+                                Tooltip(btn, make_tooltip())
 
                         btn.grid(row=fan_row, column=fan_col, padx=1, pady=1, sticky="nsew")
 
                         key = f"create_btn_{fan_idx}" if mode == "create" else f"execute_btn_{fan_idx}"
                         self.fan_status[cell_id][key] = btn
 
+    def get_rpm_text(self, cell_id, fan_index):
+        rpms = self.rpm_data.get(cell_id, [])
+        if fan_index < len(rpms):
+            return f"Cellule {cell_id} - Ventilateur {fan_index + 1} : {rpms[fan_index]} RPM"
+        else:
+            return "Aucune donnée RPM"
+    
     def select_fan(self, cell_row, cell_col, fan_row, fan_col,mode):
         cell_id = f"{cell_row}{cell_col}"
         fan_idx = (fan_row - 1) * 3 + (fan_col - 1)
@@ -670,6 +687,112 @@ class GVMControlApp:
             pass
         if self.serial_active:
             self.root.after(100, self.update_serial_log_display)
+
+class RPMReceiver:
+    def __init__(self, port='/dev/serial0', baudrate=115200):
+        self.port = port
+        self.baudrate = baudrate
+        self.serial_conn = None
+        self.running = False
+        self.data = {}  # {cell_id: [rpm1, rpm2, ..., rpm9]}
+        self.lock = threading.Lock()
+
+    def start(self):
+        try:
+            self.serial_conn = serial.Serial(self.port, self.baudrate, timeout=1)
+            self.running = True
+            self.thread = threading.Thread(target=self.listen_loop, daemon=True)
+            self.thread.start()
+            print(f"[INFO] Lecture série démarrée sur {self.port} à {self.baudrate} bauds.")
+        except Exception as e:
+            print(f"[ERREUR] Impossible d’ouvrir le port série : {e}")
+
+    def stop(self):
+        self.running = False
+        if self.serial_conn and self.serial_conn.is_open:
+            self.serial_conn.close()
+            print("[INFO] Connexion série fermée.")
+
+    def listen_loop(self):
+        while self.running:
+            try:
+                line = self.serial_conn.readline().decode('utf-8').strip()
+                if line:
+                    self.handle_message(line)
+            except Exception as e:
+                print(f"[ERREUR] Problème de lecture : {e}")
+            time.sleep(0.05)
+
+    def handle_message(self, message):
+        try:
+            data = json.loads(message)
+            cell_id = data.get("cell")
+            rpm_values = data.get("RPM")
+
+            if isinstance(cell_id, int) and isinstance(rpm_values, list) and len(rpm_values) == 9:
+                with self.lock:
+                    self.data[cell_id] = rpm_values
+                    print(f"[INFO] Cellule {cell_id} → RPM = {rpm_values}")
+            else:
+                print(f"[AVERTISSEMENT] Données invalides : {message}")
+        except json.JSONDecodeError:
+            print(f"[AVERTISSEMENT] JSON invalide : {message}")
+
+    def get_rpm_for_cell(self, cell_id):
+        with self.lock:
+            return self.data.get(cell_id, None)
+
+    def get_all_rpms(self):
+        with self.lock:
+            return dict(self.data)  # copie du dict
+
+# Exemple d'utilisation
+if __name__ == "__main__":
+    receiver = RPMReceiver()
+    receiver.start()
+
+    try:
+        while True:
+            time.sleep(5)
+            print("[INFO] Valeurs RPM stockées :")
+            print(receiver.get_all_rpms())
+    except KeyboardInterrupt:
+        print("\n[INFO] Arrêt demandé par l'utilisateur.")
+    finally:
+        receiver.stop()
+
+class Tooltip:
+    def __init__(self, widget, textfunc):
+        self.widget = widget
+        self.textfunc = textfunc
+        self.tipwindow = None
+        self.widget.bind("<Enter>", self.show_tip)
+        self.widget.bind("<Leave>", self.hide_tip)
+
+    def show_tip(self, event=None):
+        if self.tipwindow or not self.textfunc:
+            return
+        text = self.textfunc()
+        if not text:
+            return
+
+        x = y = 0
+        x = self.widget.winfo_rootx() + 20
+        y = self.widget.winfo_rooty() + 20
+        self.tipwindow = tw = tk.Toplevel(self.widget)
+        tw.wm_overrideredirect(True)
+        tw.wm_geometry(f"+{x}+{y}")
+
+        label = tk.Label(tw, text=text, justify=tk.LEFT,
+                         background="#ffffe0", relief=tk.SOLID, borderwidth=1,
+                         font=("tahoma", "8", "normal"))
+        label.pack(ipadx=1)
+
+    def hide_tip(self, event=None):
+        tw = self.tipwindow
+        if tw:
+            tw.destroy()
+        self.tipwindow = None
 
 if __name__ == "__main__":
     root = tk.Tk()
