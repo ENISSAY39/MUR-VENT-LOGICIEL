@@ -566,9 +566,60 @@ class GVMControlApp:
             self.serial_queue.put(f"Erreur ouverture port série: {e}")
             return
 
-        if not self.sequences:
-            self.serial_queue.put("Aucune séquence à exécuter.")
-            return
+        if self.sequences:
+            try:
+                for seq_name in self.sequences:
+                    seq = self.sequences[seq_name]
+                    powers = seq['powers']
+                    duration = seq['duration']
+                    start_time = time.time()
+                    end_time = start_time + duration
+
+                    self.serial_queue.put(f"⏱ Exécution de la séquence '{seq_name}' pour {duration} secondes")
+
+                    cell_ids = sorted(powers.keys())
+
+                    while time.time() < end_time and self.serial_active:
+                        loop_start = time.time()
+
+                        for publish_cell in cell_ids:
+                            json_message = {cell_id: powers[cell_id] for cell_id in cell_ids}
+                            json_message["Publish"] = int(publish_cell)
+
+                            try:
+                                msg = json.dumps(json_message)
+                                ser.write((msg + '\n').encode('utf-8'))
+                                self.serial_queue.put(f"Envoyé → {msg}")
+                            except Exception as e:
+                                self.serial_queue.put(f"Erreur d'envoi: {e}")
+
+                        elapsed = time.time() - loop_start
+                        remaining = 1.0 - elapsed
+                        if remaining > 0:
+                            time.sleep(remaining)
+
+            except Exception as e:
+                self.serial_queue.put(f"Erreur lors de l'exécution des séquences: {e}")
+        else:
+            # Profil statique : envoi unique
+            try:
+                powers = {cell_id: self.fan_status[cell_id]['power'][:] for cell_id in self.fan_status}
+                cell_ids = sorted(powers.keys())
+                self.serial_queue.put("📤 Envoi du profil statique aux modules")
+
+                for publish_cell in cell_ids:
+                    json_message = {cell_id: powers[cell_id] for cell_id in cell_ids}
+                    json_message["Publish"] = int(publish_cell)
+
+                    try:
+                        msg = json.dumps(json_message)
+                        ser.write((msg + '\n').encode('utf-8'))
+                        self.serial_queue.put(f"Envoyé (statique) → {msg}")
+                    except Exception as e:
+                        self.serial_queue.put(f"Erreur d'envoi (statique): {e}")
+            except Exception as e:
+                self.serial_queue.put(f"Erreur lors de l'envoi du profil statique: {e}")
+
 
         try:
             for seq_name in self.sequences:
