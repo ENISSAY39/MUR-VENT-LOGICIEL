@@ -561,7 +561,7 @@ class GVMControlApp:
 
     def serial_send_loop(self):
         try:
-            ser = serial.Serial('/dev/serial0', 115200, timeout=1)  # ou /dev/ttyUSB0 selon ton cas
+            ser = serial.Serial('/dev/serial0', 115200, timeout=1)
         except Exception as e:
             self.serial_queue.put(f"Erreur ouverture port série: {e}")
             return
@@ -580,21 +580,31 @@ class GVMControlApp:
 
                 self.serial_queue.put(f"⏱ Exécution de la séquence '{seq_name}' pour {duration} secondes")
 
+                cell_ids = sorted(powers.keys())  # ex: ['11', '12', ..., '33']
+
                 while time.time() < end_time and self.serial_active:
-                    for cell_id in powers:
-                        msg = json.dumps({
-                            "cell_id": cell_id,
-                            "speeds": powers[cell_id]
-                        })
+                    loop_start = time.time()
+
+                    for publish_cell in cell_ids:
+                        json_message = {cell_id: powers[cell_id] for cell_id in cell_ids}
+                        json_message["Publish"] = int(publish_cell)
+
                         try:
+                            msg = json.dumps(json_message)
                             ser.write((msg + '\n').encode('utf-8'))
                             self.serial_queue.put(f"Envoyé → {msg}")
                         except Exception as e:
                             self.serial_queue.put(f"Erreur d'envoi: {e}")
-                        time.sleep(0.05)  # Délai entre les cellules
-                    time.sleep(0.5)  # Délai entre chaque boucle complète
+
+                    # Attente pour que la boucle dure exactement 1 seconde
+                    elapsed = time.time() - loop_start
+                    remaining = 1.0 - elapsed
+                    if remaining > 0:
+                        time.sleep(remaining)
+
         except Exception as e:
             self.serial_queue.put(f"Erreur lors de l'exécution des séquences: {e}")
+
 
 
     def update_serial_log_display(self):
