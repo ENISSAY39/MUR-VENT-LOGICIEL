@@ -29,6 +29,9 @@ class GVMControlApp:
         self.create_frames()
         self.show_home()
 
+        self.rpm_receiver = RPMReceiver(callback=self.receive_rpm_message)
+
+
         # self.update_thread = threading.Thread(target=self.update_rpm_data, daemon=True)
         # self.update_thread.start()
 
@@ -179,6 +182,8 @@ class GVMControlApp:
         ttk.Button(buttons_frame, text="Reset la grille", command=lambda: self.reset_grille("execute")).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Charger profil", command=self.charger_profil).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Envoyer commande", command=self.start_serial_communication).pack(pady=5, ipadx=10, ipady=5)
+        self.stop_button = ttk.Button(buttons_frame, text="Arrêter l'envoi", command=self.stop_serial_communication, state='disabled')
+        self.stop_button.pack(pady=5, ipadx=10, ipady=5)
 
         grid_frame = ttk.Frame(container)
         grid_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -262,16 +267,12 @@ class GVMControlApp:
                             btn.config(text="0%",
                                        command=lambda cr2=cell_row, cc2=cell_col, fr2=fan_row + 1, fc2=fan_col + 1:
                                        self.select_fan(cr2, cc2, fr2, fc2,"execute"))
-                            for i in range(9):
-                                btn_key = f"execute_btn_{i}"
-                                btn = ttk.Button(cell_frame, text="0%")
-                                self.fan_status[cell_id][btn_key] = btn
-                                btn.grid(row=..., column=...)  # selon ton layout
 
-                                def make_tooltip(cell=cell_id, idx=i):
-                                    return lambda: self.get_rpm_text(cell, idx)
 
-                                Tooltip(btn, make_tooltip())
+                        def make_tooltip(cell=cell_id, idx=i):
+                            return lambda: self.get_rpm_text(cell, idx)
+
+                        Tooltip(btn, make_tooltip())
 
                         btn.grid(row=fan_row, column=fan_col, padx=1, pady=1, sticky="nsew")
 
@@ -284,7 +285,7 @@ class GVMControlApp:
             return f"Cellule {cell_id} - Ventilateur {fan_index + 1} : {rpms[fan_index]} RPM"
         else:
             return "Aucune donnée RPM"
-    
+
     def select_fan(self, cell_row, cell_col, fan_row, fan_col,mode):
         cell_id = f"{cell_row}{cell_col}"
         fan_idx = (fan_row - 1) * 3 + (fan_col - 1)
@@ -575,6 +576,10 @@ class GVMControlApp:
 
         # Rafraîchit l'affichage des logs
         self.update_serial_log_display()
+        self.stop_button.config(state='normal')
+
+        self.rpm_receiver.start()
+
 
     def serial_send_loop(self):
         try:
@@ -618,25 +623,33 @@ class GVMControlApp:
             except Exception as e:
                 self.serial_queue.put(f"Erreur lors de l'exécution des séquences: {e}")
         else:
-            # Profil statique : envoi unique
             try:
                 powers = {cell_id: self.fan_status[cell_id]['power'][:] for cell_id in self.fan_status}
                 cell_ids = sorted(powers.keys())
-                self.serial_queue.put("📤 Envoi du profil statique aux modules")
+                self.serial_queue.put("📤 Envoi cyclique du profil statique toutes les secondes.")
 
-                for publish_cell in cell_ids:
-                    json_message = {cell_id: powers[cell_id] for cell_id in cell_ids}
-                    json_message["Publish"] = int(publish_cell)
+                while self.serial_active:
+                    loop_start = time.time()
+                    for publish_cell in cell_ids:
+                        json_message = {cell_id: powers[cell_id] for cell_id in cell_ids}
+                        json_message["Publish"] = int(publish_cell)
 
-                    try:
-                        msg = json.dumps(json_message)
-                        ser.write((msg + '\n').encode('utf-8'))
-                        self.serial_queue.put(f"Envoyé (statique) → {msg}")
-                    except Exception as e:
-                        self.serial_queue.put(f"Erreur d'envoi (statique): {e}")
+                        try:
+                            msg = json.dumps(json_message)
+                            ser.write((msg + '\n').encode('utf-8'))
+                            self.serial_queue.put(f"Envoyé (statique) → {msg}")
+                        except Exception as e:
+                            self.serial_queue.put(f"Erreur d'envoi (statique): {e}")
+
+                    elapsed = time.time() - loop_start
+                    remaining = 1.0 - elapsed
+                    if remaining > 0:
+                        time.sleep(remaining)
+
+                self.serial_queue.put("🛑 Envoi statique arrêté par l'utilisateur.")
+
             except Exception as e:
                 self.serial_queue.put(f"Erreur lors de l'envoi du profil statique: {e}")
-
 
         try:
             for seq_name in self.sequences:
@@ -673,8 +686,6 @@ class GVMControlApp:
         except Exception as e:
             self.serial_queue.put(f"Erreur lors de l'exécution des séquences: {e}")
 
-
-
     def update_serial_log_display(self):
         try:
             while not self.serial_queue.empty():
@@ -688,14 +699,29 @@ class GVMControlApp:
         if self.serial_active:
             self.root.after(100, self.update_serial_log_display)
 
+    def stop_serial_communication(self):
+        self.serial_active = False
+        self.stop_button.config(state='disabled')
+        self.serial_queue.put("🛑 Arrêt manuel de l'envoi par l'utilisateur.")
+
+        if hasattr(self, 'serial_log_window') and self.serial_log_window.winfo_exists():
+            self.serial_log_window.destroy()
+
+        self.rpm_receiver.stop()
+
+    def receive_rpm_message(self, message):
+        if hasattr(self, 'serial_queue'):
+            self.serial_queue.put(message)
+
 class RPMReceiver:
-    def __init__(self, port='/dev/serial0', baudrate=115200):
+    def __init__(self, port='/dev/serial0', baudrate=115200, callback=None):
         self.port = port
         self.baudrate = baudrate
         self.serial_conn = None
         self.running = False
-        self.data = {}  # {cell_id: [rpm1, rpm2, ..., rpm9]}
+        self.data = {}
         self.lock = threading.Lock()
+        self.callback = callback  # ✅ nouveau paramètre pour communiquer avec l'interface
 
     def start(self):
         try:
@@ -732,11 +758,20 @@ class RPMReceiver:
             if isinstance(cell_id, int) and isinstance(rpm_values, list) and len(rpm_values) == 9:
                 with self.lock:
                     self.data[cell_id] = rpm_values
-                    print(f"[INFO] Cellule {cell_id} → RPM = {rpm_values}")
+
+                # ✅ Appel du callback vers GVMControlApp
+                if self.callback:
+                    self.callback(f"Réception ← Cellule {cell_id} : {rpm_values}")
+
             else:
-                print(f"[AVERTISSEMENT] Données invalides : {message}")
+                warning = f"[AVERTISSEMENT] Données invalides : {message}"
+                if self.callback:
+                    self.callback(warning)
+
         except json.JSONDecodeError:
-            print(f"[AVERTISSEMENT] JSON invalide : {message}")
+            error = f"[AVERTISSEMENT] JSON invalide : {message}"
+            if self.callback:
+                self.callback(error)
 
     def get_rpm_for_cell(self, cell_id):
         with self.lock:
@@ -745,21 +780,6 @@ class RPMReceiver:
     def get_all_rpms(self):
         with self.lock:
             return dict(self.data)  # copie du dict
-
-# Exemple d'utilisation
-if __name__ == "__main__":
-    receiver = RPMReceiver()
-    receiver.start()
-
-    try:
-        while True:
-            time.sleep(5)
-            print("[INFO] Valeurs RPM stockées :")
-            print(receiver.get_all_rpms())
-    except KeyboardInterrupt:
-        print("\n[INFO] Arrêt demandé par l'utilisateur.")
-    finally:
-        receiver.stop()
 
 class Tooltip:
     def __init__(self, widget, textfunc):
