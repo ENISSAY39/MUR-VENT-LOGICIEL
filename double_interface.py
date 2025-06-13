@@ -710,15 +710,12 @@ class RPMReceiver:
     def handle_message(self, message):
         try:
             data = json.loads(message)
-            cell_id = data.get("cell")
+            cell_id = str(data.get("cell"))  # ⚠️ conversion en string
             rpm_values = data.get("RPM")
 
-            if isinstance(cell_id, int) and isinstance(rpm_values, list) and len(rpm_values) == 9:
+            if isinstance(rpm_values, list) and len(rpm_values) == 9:
                 with self.lock:
                     self.data[cell_id] = rpm_values
-                    print(f"[INFO] Cellule {cell_id} → RPM = {rpm_values}")
-            else:
-                print(f"[AVERTISSEMENT] Données invalides : {message}")
         except json.JSONDecodeError:
             print(f"[AVERTISSEMENT] JSON invalide : {message}")
 
@@ -729,6 +726,15 @@ class RPMReceiver:
     def get_all_rpms(self):
         with self.lock:
             return dict(self.data)  # copie du dict
+        
+    def get_rpm_text(self, cell_id, fan_idx):
+        rpm_values = self.rpm_data.get(cell_id, [])
+        print(f"Tooltip for {cell_id}[{fan_idx}] → {rpm_values}")
+        if 0 <= fan_idx < len(rpm_values):
+            return f"RPM: {rpm_values[fan_idx]}"
+        else:
+            return "RPM non disponible"
+
 
 # # Exemple d'utilisation
 # if __name__ == "__main__":
