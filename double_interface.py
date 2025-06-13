@@ -59,7 +59,7 @@ class GVMControlApp:
         self.hide_all_frames()
         self.home_frame.pack(fill=tk.BOTH, expand=True)
         self.stop_serial_communication()
-        
+
     def show_grid_mode(self, mode):
         self.current_mode = mode
         self.hide_all_frames()
@@ -191,7 +191,8 @@ class GVMControlApp:
         ttk.Button(buttons_frame, text="Appliquer à tous", command=lambda: self.apply_power_all("execute")).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Reset la grille", command=lambda: self.reset_grille("execute")).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Charger profil", command=self.charger_profil).pack(pady=5, ipadx=10, ipady=5)
-        ttk.Button(buttons_frame, text="Envoyer commande", command=self.start_serial_communication).pack(pady=5, ipadx=10, ipady=5)
+        self.send_button = ttk.Button(buttons_frame, text="Envoyer commande", command=self.start_serial_communication, state='normal')
+        self.send_button.pack(pady=5, ipadx=10, ipady=5)
         self.stop_button = ttk.Button(buttons_frame, text="Arrêter l'envoi", command=self.stop_serial_communication, state='disabled')
         self.stop_button.pack(pady=5, ipadx=10, ipady=5)
 
@@ -599,6 +600,7 @@ class GVMControlApp:
         self.update_serial_log_display()
 
         self.stop_button.config(state='normal')
+        self.send_button.config(state='disabled')
 
     def serial_send_loop(self):
         try:
@@ -670,11 +672,11 @@ class GVMControlApp:
     def stop_serial_communication(self):
         self.serial_active = False
         self.stop_button.config(state='disabled')
-        #self.serial_queue.put("🛑 Arrêt manuel de l'envoi par l'utilisateur.")
+        self.send_button.config(state='normal')
 
         if hasattr(self, 'serial_log_window') and self.serial_log_window.winfo_exists():
             self.serial_log_window.destroy()
-
+        
     def update_serial_log_display(self):
         try:
             while not self.serial_queue.empty():
