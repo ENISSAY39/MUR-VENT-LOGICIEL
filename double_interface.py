@@ -25,13 +25,15 @@ class GVMControlApp:
         self.selected_fans = set()
         self.sequences = {}  # {name: {'powers': {...}, 'duration': int}}
         self.sequence_buttons = []
+        self.rpm_receiver = RPMReceiver()
+        self.rpm_receiver.start()
 
         self.initialize_fan_data()
         self.create_frames()
         self.show_home()
 
-        # self.update_thread = threading.Thread(target=self.update_rpm_data, daemon=True)
-        # self.update_thread.start()
+        self.update_thread = threading.Thread(target=self.update_rpm_data, daemon=True)
+        self.update_thread.start()
 
     def create_frames(self):
         self.home_frame = ttk.Frame(self.root)
@@ -659,6 +661,18 @@ class GVMControlApp:
         if self.serial_active:
             self.root.after(100, self.update_serial_log_display)
 
+    def update_rpm_data(self):
+        while True:
+            rpm_values = self.rpm_receiver.get_all_rpms()
+            # Utiliser `after` pour mettre à jour l'UI dans le thread principal
+            self.root.after(0, self.update_rpm_display, rpm_values)
+            time.sleep(0.1)
+
+    def update_rpm_display(self, rpm_values):
+        # Parcourir rpm_values et mettre à jour les labels ou boutons correspondants
+        for cell_id, rpms in rpm_values.items():
+            # Exemple : update bouton ou label
+            pass
 class RPMReceiver:
     def __init__(self, port='/dev/serial0', baudrate=115200):
         self.port = port
