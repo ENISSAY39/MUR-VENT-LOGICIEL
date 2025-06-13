@@ -669,10 +669,9 @@ class GVMControlApp:
             time.sleep(0.1)
 
     def update_rpm_display(self, rpm_values):
-        # Parcourir rpm_values et mettre à jour les labels ou boutons correspondants
         for cell_id, rpms in rpm_values.items():
-            # Exemple : update bouton ou label
-            pass
+            self.rpm_data[cell_id] = rpms  # met à jour les données utilisées par les tooltips
+
 class RPMReceiver:
     def __init__(self, port='/dev/serial0', baudrate=115200):
         self.port = port
