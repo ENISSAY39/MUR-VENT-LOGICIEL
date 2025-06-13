@@ -14,6 +14,8 @@ class GVMControlApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Contrôle GVM - Système de Ventilation Modulaire")
+        
+        self.loop_profile_var = tk.BooleanVar(value=False)
 
         self.profile_name = "Aucun profil chargé"
         self.is_modified = False
@@ -56,7 +58,8 @@ class GVMControlApp:
     def show_home(self):
         self.hide_all_frames()
         self.home_frame.pack(fill=tk.BOTH, expand=True)
-
+        self.stop_serial_communication()
+        
     def show_grid_mode(self, mode):
         self.current_mode = mode
         self.hide_all_frames()
@@ -324,7 +327,8 @@ class GVMControlApp:
                        fg="white" if power > 0 else "black")
         self.selected_fans.clear()
         self.mark_as_modified()
-
+        self.stop_serial_communication()
+        
     def apply_power_all(self, mode):
         power = self.power_var_create.get() if mode =="create" else self.power_var_execute.get()
         self.selected_fans.clear()
@@ -335,9 +339,11 @@ class GVMControlApp:
                 btn.config(text=f"{power}%", bg="green" if power > 0 else "lightgrey",
                            fg="white" if power > 0 else "black")
         self.mark_as_modified()
+        self.stop_serial_communication()
 
     def reset_grille(self, mode):
         self.mark_as_modified()
+        self.stop_serial_communication()
         self.selected_fans.clear()  # Désélectionne tous les ventilateurs
 
         for cell_id, data in self.fan_status.items():
@@ -370,6 +376,7 @@ class GVMControlApp:
         self.add_sequence_button(name)
         self.reset_grid()
         self.mark_as_modified()
+        self.stop_serial_communication()
 
     def reset_grid(self):
         for cell_id in self.fan_status:
@@ -452,6 +459,7 @@ class GVMControlApp:
             if name in self.sequences:
                 del self.sequences[name]
                 self.mark_as_modified()
+                self.stop_serial_communication()
             frame.destroy()
             self.sequence_buttons = [t for t in self.sequence_buttons if t[1] != name]
 
@@ -463,6 +471,7 @@ class GVMControlApp:
             self.sequences[name]['powers'] = new_snapshot
             messagebox.showinfo("Modifications enregistrées", f"La séquence '{name}' a été mise à jour.")
             self.mark_as_modified()
+            self.stop_serial_communication()
 
     def load_sequence(self, name):
         if name in self.sequences:
@@ -661,7 +670,7 @@ class GVMControlApp:
     def stop_serial_communication(self):
         self.serial_active = False
         self.stop_button.config(state='disabled')
-        self.serial_queue.put("🛑 Arrêt manuel de l'envoi par l'utilisateur.")
+        #self.serial_queue.put("🛑 Arrêt manuel de l'envoi par l'utilisateur.")
 
         if hasattr(self, 'serial_log_window') and self.serial_log_window.winfo_exists():
             self.serial_log_window.destroy()
