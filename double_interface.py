@@ -515,6 +515,8 @@ class GVMControlApp:
 
             profil_type = data.get("type")
 
+            self.reset_grille(self.current_mode)
+
             if profil_type == "dynamique":
                 self.sequences = data.get("sequences", {})
                 self.actualiser_sequence_buttons()
