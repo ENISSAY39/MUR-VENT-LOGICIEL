@@ -34,6 +34,9 @@ class GVMControlApp:
 
         self.update_thread = threading.Thread(target=self.update_rpm_data, daemon=True)
         self.update_thread.start()
+        
+        self.loop_profile_var = tk.BooleanVar(value=False)
+
 
     def create_frames(self):
         self.home_frame = ttk.Frame(self.root)
@@ -142,6 +145,10 @@ class GVMControlApp:
 
         ttk.Button(sequence_frame, text="Sauvegarder profil", command=self.sauvegarder_profil).pack(pady=2, ipadx=10, ipady=5)
         ttk.Button(sequence_frame, text="Charger profil", command=self.charger_profil).pack(pady=2, ipadx=10, ipady=5)
+
+        self.loop_checkbox = ttk.Checkbutton(sequence_frame, text="Boucler le profil", variable=self.loop_profile_var)
+        self.loop_checkbox.pack(pady=5)
+
 
     def create_monitor_interface(self):
         # Frame principale pour la page "execute"
@@ -482,11 +489,12 @@ class GVMControlApp:
 
         try:
             if self.sequences:
-                # Profil Dynamique
                 data = {
                     "type": "dynamique",
-                    "sequences": self.sequences
+                    "sequences": self.sequences,
+                    "loop": self.loop_profile_var.get()  # 🔁 Ajout ici
                 }
+
             else:
                 # Profil Statique
                 grid_snapshot = {
@@ -512,6 +520,8 @@ class GVMControlApp:
         try:
             with open(filepath, "r") as f:
                 data = json.load(f)
+            
+            self.loop_profile_var.set(data.get("loop", False))  # 🔁 Charge l'état si présent
 
             profil_type = data.get("type")
 
@@ -592,7 +602,10 @@ class GVMControlApp:
             # 🔁 Envoi continu des séquences
             try:
                 self.serial_queue.put("🚀 Démarrage de l'envoi cyclique des séquences.")
-                while self.serial_active:
+                first_cycle = True
+                while self.serial_active and (first_cycle or self.loop_profile_var.get()):
+                    first_cycle = False
+
                     for seq_name in self.sequences:
                         seq = self.sequences[seq_name]
                         powers = seq['powers']
