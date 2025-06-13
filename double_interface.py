@@ -180,6 +180,8 @@ class GVMControlApp:
         ttk.Button(buttons_frame, text="Reset la grille", command=lambda: self.reset_grille("execute")).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Charger profil", command=self.charger_profil).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Envoyer commande", command=self.start_serial_communication).pack(pady=5, ipadx=10, ipady=5)
+        self.stop_button = ttk.Button(buttons_frame, text="Arrêter l'envoi", command=self.stop_serial_communication, state='disabled')
+        self.stop_button.pack(pady=5, ipadx=10, ipady=5)
 
         grid_frame = ttk.Frame(container)
         grid_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -573,6 +575,8 @@ class GVMControlApp:
         # Rafraîchit l'affichage des logs
         self.update_serial_log_display()
 
+        self.stop_button.config(state='normal')
+
     def serial_send_loop(self):
         try:
             ser = serial.Serial('/dev/serial0', 115200, timeout=1)
@@ -580,44 +584,67 @@ class GVMControlApp:
             self.serial_queue.put(f"Erreur ouverture port série: {e}")
             return
 
-        if not self.sequences:
-            self.serial_queue.put("Aucune séquence à exécuter.")
-            return
+        if self.sequences:
+            # 🔁 Envoi continu des séquences
+            try:
+                self.serial_queue.put("🚀 Démarrage de l'envoi cyclique des séquences.")
+                while self.serial_active:
+                    for seq_name in self.sequences:
+                        seq = self.sequences[seq_name]
+                        powers = seq['powers']
+                        duration = seq['duration']
+                        self.serial_queue.put(f"⏱ Envoi de la séquence '{seq_name}' pendant {duration} secondes")
 
-        try:
-            for seq_name in self.sequences:
-                seq = self.sequences[seq_name]
-                powers = seq['powers']
-                duration = seq['duration']
-                start_time = time.time()
-                end_time = start_time + duration
+                        cell_ids = sorted(powers.keys())
+                        seq_start = time.time()
+                        seq_end = seq_start + duration
 
-                self.serial_queue.put(f"⏱ Exécution de la séquence '{seq_name}' pour {duration} secondes")
+                        while time.time() < seq_end and self.serial_active:
+                            loop_start = time.time()
+                            for publish_cell in cell_ids:
+                                json_message = {cell_id: powers[cell_id] for cell_id in cell_ids}
+                                json_message["Publish"] = int(publish_cell)
+                                try:
+                                    msg = json.dumps(json_message)
+                                    ser.write((msg + '\n').encode('utf-8'))
+                                    self.serial_queue.put(f"Envoyé → {msg}")
+                                except Exception as e:
+                                    self.serial_queue.put(f"Erreur d'envoi: {e}")
+                            time.sleep(max(0, 1.0 - (time.time() - loop_start)))
+                self.serial_queue.put("🛑 Envoi interrompu par l'utilisateur.")
+            except Exception as e:
+                self.serial_queue.put(f"Erreur lors de l'exécution des séquences: {e}")
+        else:
+            # 🔁 Envoi continu du profil statique
+            try:
+                powers = {cell_id: self.fan_status[cell_id]['power'][:] for cell_id in self.fan_status}
+                cell_ids = sorted(powers.keys())
+                self.serial_queue.put("📤 Envoi cyclique du profil statique toutes les secondes.")
 
-                cell_ids = sorted(powers.keys())  # ex: ['11', '12', ..., '33']
-
-                while time.time() < end_time and self.serial_active:
+                while self.serial_active:
                     loop_start = time.time()
-
                     for publish_cell in cell_ids:
                         json_message = {cell_id: powers[cell_id] for cell_id in cell_ids}
                         json_message["Publish"] = int(publish_cell)
-
                         try:
                             msg = json.dumps(json_message)
                             ser.write((msg + '\n').encode('utf-8'))
-                            self.serial_queue.put(f"Envoyé → {msg}")
+                            self.serial_queue.put(f"Envoyé (statique) → {msg}")
                         except Exception as e:
-                            self.serial_queue.put(f"Erreur d'envoi: {e}")
+                            self.serial_queue.put(f"Erreur d'envoi (statique): {e}")
+                    time.sleep(max(0, 1.0 - (time.time() - loop_start)))
 
-                    # Attente pour que la boucle dure exactement 1 seconde
-                    elapsed = time.time() - loop_start
-                    remaining = 1.0 - elapsed
-                    if remaining > 0:
-                        time.sleep(remaining)
+                self.serial_queue.put("🛑 Envoi statique arrêté par l'utilisateur.")
+            except Exception as e:
+                self.serial_queue.put(f"Erreur lors de l'envoi du profil statique: {e}")
 
-        except Exception as e:
-            self.serial_queue.put(f"Erreur lors de l'exécution des séquences: {e}")
+    def stop_serial_communication(self):
+        self.serial_active = False
+        self.stop_button.config(state='disabled')
+        self.serial_queue.put("🛑 Arrêt manuel de l'envoi par l'utilisateur.")
+
+        if hasattr(self, 'serial_log_window') and self.serial_log_window.winfo_exists():
+            self.serial_log_window.destroy()
 
     def update_serial_log_display(self):
         try:
@@ -690,20 +717,20 @@ class RPMReceiver:
         with self.lock:
             return dict(self.data)  # copie du dict
 
-# Exemple d'utilisation
-if __name__ == "__main__":
-    receiver = RPMReceiver()
-    receiver.start()
+# # Exemple d'utilisation
+# if __name__ == "__main__":
+#     receiver = RPMReceiver()
+#     receiver.start()
 
-    try:
-        while True:
-            time.sleep(5)
-            print("[INFO] Valeurs RPM stockées :")
-            print(receiver.get_all_rpms())
-    except KeyboardInterrupt:
-        print("\n[INFO] Arrêt demandé par l'utilisateur.")
-    finally:
-        receiver.stop()
+#     try:
+#         while True:
+#             time.sleep(5)
+#             print("[INFO] Valeurs RPM stockées :")
+#             print(receiver.get_all_rpms())
+#     except KeyboardInterrupt:
+#         print("\n[INFO] Arrêt demandé par l'utilisateur.")
+#     finally:
+#         receiver.stop()
 
 class Tooltip:
     def __init__(self, widget, textfunc):
