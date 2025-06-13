@@ -621,13 +621,16 @@ class GVMControlApp:
             try:
                 powers = {cell_id: self.fan_status[cell_id]['power'][:] for cell_id in self.fan_status}
                 cell_ids = sorted(powers.keys())
-                self.serial_queue.put("📤 Envoi cyclique du profil statique toutes les secondes.")
+
+                self.serial_queue.put("📤 Envoi du profil statique : 1 JSON par cellule réparti sur 1 seconde.")
 
                 while self.serial_active:
                     loop_start = time.time()
+
                     for publish_cell in cell_ids:
                         json_message = {cell_id: powers[cell_id] for cell_id in cell_ids}
                         json_message["Publish"] = int(publish_cell)
+
                         try:
                             msg = json.dumps(json_message)
                             ser.write((msg + '\n').encode('utf-8'))
