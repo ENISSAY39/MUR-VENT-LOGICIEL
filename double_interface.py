@@ -39,6 +39,7 @@ class GVMControlApp:
         self.create_frames()
         self.show_home()
         self.charger_csv_ventilateur()
+        self.obtenir_indice_depuis_pourcentage(50)
 
         self.update_thread = threading.Thread(target=self.update_rpm_data, daemon=True)
         self.update_thread.start()
@@ -86,8 +87,8 @@ class GVMControlApp:
         airflow_fin = self.airflow_values[-1]
 
         # 17 valeurs également espacées entre airflow_debut et airflow_fin
-        step = (airflow_fin - airflow_debut) / 18  # 18 intervalles => 19 points entre les extrêmes
-        valeurs_interpolees = [airflow_debut + i * step for i in range(1, 18)]  # on saute le début (0) et la première vraie valeur
+        step = (airflow_fin - airflow_debut) / 19  # 18 intervalles => 19 points entre les extrêmes
+        valeurs_interpolees = [airflow_debut + i * step for i in range(1, 19)]  # on saute le début (0) et la première vraie valeur
 
         # On cherche pour chaque valeur interpolée la plus proche dans la vraie liste
         airflow_reduit = [0.0]  # première valeur fixée à 0
@@ -98,8 +99,38 @@ class GVMControlApp:
             airflow_reduit.append(valeur_proche)
 
         airflow_reduit.append(self.airflow_values[-1])  # dernière valeur réelle
-        self.airflow_percentage.append(airflow_reduit)
+        self.airflow_percentage = airflow_reduit
 
+    def obtenir_indice_depuis_pourcentage(self, pourcentage):
+        """
+        Reçoit une valeur entre 0 et 100 avec des paliers de 5.
+        1. Divise la valeur par 5 pour trouver l’indice dans self.airflow_percentage.
+        2. Cherche la valeur correspondante dans self.airflow_values.
+        3. Retourne l’indice de cette valeur dans self.airflow_values.
+        Si la valeur est 0, retourne -1.
+        """
+        if pourcentage % 5 != 0 or not (0 <= pourcentage <= 100):
+            raise ValueError("Le pourcentage doit être un multiple de 5 entre 0 et 100.")
+
+        index_percentage = pourcentage // 5
+
+        try:
+            valeur_airflow = self.airflow_percentage[index_percentage]
+            #print(valeur_airflow)
+        except IndexError:
+            raise IndexError("Index hors limite dans airflow_percentage.")
+
+        if valeur_airflow == 0:
+            return -1
+
+        try:
+            index_airflow = self.airflow_values.index(valeur_airflow)
+            #print(index_airflow)
+            return index_airflow
+            
+        except ValueError:
+            raise ValueError("La valeur airflow n’a pas été trouvée dans airflow_values.")
+    
     def create_frames(self):
         self.home_frame = ttk.Frame(self.root)
 
@@ -699,8 +730,7 @@ class GVMControlApp:
                                 except Exception as e:
                                     self.serial_queue.put(f"Erreur d'envoi: {e}")
                             time.sleep(max(0, 1.0 - (time.time() - loop_start)))
-                self.send_zero_command()
-                self.serial_queue.put("fin du profil")
+                self.serial_queue.put("🛑 Envoi interrompu par l'utilisateur.")
             except Exception as e:
                 self.serial_queue.put(f"Erreur lors de l'exécution des séquences: {e}")
         else:
@@ -725,40 +755,19 @@ class GVMControlApp:
                         except Exception as e:
                             self.serial_queue.put(f"Erreur d'envoi (statique): {e}")
                     time.sleep(max(0, 1.0 - (time.time() - loop_start)))
-                self.send_zero_command()
-                self.serial_queue.put("fin du profil")
+
+                self.serial_queue.put("🛑 Envoi statique arrêté par l'utilisateur.")
             except Exception as e:
                 self.serial_queue.put(f"Erreur lors de l'envoi du profil statique: {e}")
 
     def stop_serial_communication(self):
         self.serial_active = False
-        self.send_zero_command()
         self.stop_button.config(state='disabled')
         self.send_button.config(state='normal')
 
         if hasattr(self, 'serial_log_window') and self.serial_log_window.winfo_exists():
             self.serial_log_window.destroy()
-
-    def send_zero_command(self):
-        try:
-            ser = serial.Serial('/dev/serial0', 115200, timeout=1)
-
-            # Prépare un message JSON avec toutes les puissances à 0
-            zero_powers = {cell_id: [0]*9 for cell_id in self.fan_status}
-            cell_ids = sorted(zero_powers.keys())
-
-            for publish_cell in cell_ids:
-                json_message = {cell_id: zero_powers[cell_id] for cell_id in cell_ids}
-                json_message["Publish"] = int(publish_cell)
-                msg = json.dumps(json_message)
-                ser.write((msg + '\n').encode('utf-8'))
-
-            ser.close()
-            print("[INFO] Commande d'arrêt envoyée à tous les ventilateurs.")
-        except Exception as e:
-            print(f"[ERREUR] Impossible d'envoyer la commande d'arrêt : {e}")
-
-
+        
     def update_serial_log_display(self):
         try:
             while not self.serial_queue.empty():
@@ -909,3 +918,4 @@ if __name__ == "__main__":
         root.deiconify()  # Réaffiche la fenêtre principale
         app = GVMControlApp(root, grid_rows=rows, grid_cols=cols)
         root.mainloop()
+
