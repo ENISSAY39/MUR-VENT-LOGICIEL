@@ -382,7 +382,7 @@ class GVMControlApp:
         try:
             rpm_values = self.rpm_data.get(cell_id, [])
             if 0 <= fan_idx < len(rpm_values):
-                return f"RPM: {rpm_values[fan_idx]}"
+                return f"RPM Consigne: \n RPM Réel: {rpm_values[fan_idx]}"
             else:
                 return "RPM non disponible"
         except Exception as e:
@@ -799,6 +799,16 @@ class GVMControlApp:
         for cell_id, rpms in rpm_values.items():
             self.rpm_data[cell_id] = rpms  # met à jour les données utilisées par les tooltips
 
+    def get_rpm_text_consigne(self, cell_id, fan_idx):
+        try:
+            rpm_values = self.rpm_data.get(cell_id, [])
+            if 0 <= fan_idx < len(rpm_values):
+                return f"RPM consigne: {rpm_values[fan_idx]}"
+            else:
+                return "RPM non disponible"
+        except Exception as e:
+            return f"Erreur : {str(e)}"
+        
 class RPMReceiver:
     def __init__(self, port='/dev/serial0', baudrate=115200):
         self.port = port
@@ -854,13 +864,13 @@ class RPMReceiver:
         with self.lock:
             return dict(self.data)  # copie du dict
         
-    def get_rpm_text(self, cell_id, fan_idx):
-        rpm_values = self.rpm_data.get(cell_id, [])
-        print(f"Tooltip for {cell_id}[{fan_idx}] → {rpm_values}")
-        if 0 <= fan_idx < len(rpm_values):
-            return f"RPM: {rpm_values[fan_idx]}"
-        else:
-            return "RPM non disponible"
+    #def get_rpm_text(self, cell_id, fan_idx):
+    #    rpm_values = self.rpm_data.get(cell_id, [])
+     #   print(f"Tooltip for {cell_id}[{fan_idx}] → {rpm_values}")
+      #  if 0 <= fan_idx < len(rpm_values):
+       #     return f"RPM: {rpm_values[fan_idx]}"
+        #else:
+         #   return "RPM non disponible"
 
 
 # # Exemple d'utilisation
