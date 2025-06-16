@@ -639,7 +639,8 @@ class GVMControlApp:
                                 except Exception as e:
                                     self.serial_queue.put(f"Erreur d'envoi: {e}")
                             time.sleep(max(0, 1.0 - (time.time() - loop_start)))
-                self.serial_queue.put("🛑 Envoi interrompu par l'utilisateur.")
+                self.send_zero_command()
+                self.serial_queue.put("fin du profil")
             except Exception as e:
                 self.serial_queue.put(f"Erreur lors de l'exécution des séquences: {e}")
         else:
@@ -664,8 +665,8 @@ class GVMControlApp:
                         except Exception as e:
                             self.serial_queue.put(f"Erreur d'envoi (statique): {e}")
                     time.sleep(max(0, 1.0 - (time.time() - loop_start)))
-
-                self.serial_queue.put("🛑 Envoi statique arrêté par l'utilisateur.")
+                self.send_zero_command()
+                self.serial_queue.put("fin du profil")
             except Exception as e:
                 self.serial_queue.put(f"Erreur lors de l'envoi du profil statique: {e}")
 
@@ -848,4 +849,3 @@ if __name__ == "__main__":
         root.deiconify()  # Réaffiche la fenêtre principale
         app = GVMControlApp(root, grid_rows=rows, grid_cols=cols)
         root.mainloop()
-
