@@ -380,9 +380,18 @@ class GVMControlApp:
 
     def get_rpm_text(self, cell_id, fan_idx):
         try:
-            rpm_values = self.rpm_data.get(cell_id, [])
-            if 0 <= fan_idx < len(rpm_values):
-                return f"RPM Consigne: \n RPM Réel: {rpm_values[fan_idx]}"
+            power = self.fan_status[cell_id]['power'][fan_idx]
+            try:
+                indice = self.obtenir_indice_depuis_pourcentage(power)
+                rpm_consigne = self.rpm_values[indice]
+                if indice==-1:
+                    rpm_consigne = 0
+            except Exception:
+                indice = 'Erreur'
+            rpm_reel = self.rpm_data.get(cell_id, [])
+
+            if 0 <= fan_idx < len(rpm_reel):
+                return f"RPM Consigne: {rpm_consigne} \n RPM Réel: {rpm_reel[fan_idx]}"
             else:
                 return "RPM non disponible"
         except Exception as e:
