@@ -721,7 +721,10 @@ class GVMControlApp:
                         while time.time() < seq_end and self.serial_active:
                             loop_start = time.time()
                             for publish_cell in cell_ids:
-                                json_message = {cell_id: powers[cell_id] for cell_id in cell_ids}
+                                json_message = {
+                                    cell_id: [self.obtenir_indice_depuis_pourcentage(p) for p in powers[cell_id]]
+                                    for cell_id in cell_ids
+                                }       
                                 json_message["Publish"] = int(publish_cell)
                                 try:
                                     msg = json.dumps(json_message)
@@ -745,7 +748,11 @@ class GVMControlApp:
                     loop_start = time.time()
 
                     for publish_cell in cell_ids:
-                        json_message = {cell_id: powers[cell_id] for cell_id in cell_ids}
+                        json_message = {
+                            cell_id: [self.obtenir_indice_depuis_pourcentage(p) for p in powers[cell_id]]
+                            for cell_id in cell_ids
+                        }
+
                         json_message["Publish"] = int(publish_cell)
 
                         try:
@@ -918,4 +925,3 @@ if __name__ == "__main__":
         root.deiconify()  # Réaffiche la fenêtre principale
         app = GVMControlApp(root, grid_rows=rows, grid_cols=cols)
         root.mainloop()
-
