@@ -11,7 +11,7 @@ import queue
 from functools import partial
 
 class GVMControlApp:
-    def __init__(self, root):
+    def __init__(self, root, grid_rows=3, grid_cols=3):
         self.root = root
         self.root.title("Contrôle GVM - Système de Ventilation Modulaire")
         
@@ -19,8 +19,8 @@ class GVMControlApp:
 
         self.profile_name = "Aucun profil chargé"
         self.is_modified = False
-        self.grid_rows = 3
-        self.grid_cols = 3
+        self.grid_rows = grid_rows
+        self.grid_cols = grid_cols
         self.rpm_data = {}
         self.fan_status = {}
         self.current_mode = "create"
@@ -815,5 +815,16 @@ class Tooltip:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = GVMControlApp(root)
-    root.mainloop()
+    root.withdraw()  # Cache temporairement la fenêtre principale
+
+    rows = simpledialog.askinteger("Configuration initiale", "Nombre de lignes de cellules :", minvalue=1, initialvalue=3)
+    cols = simpledialog.askinteger("Configuration initiale", "Nombre de colonnes de cellules :", minvalue=1, initialvalue=3)
+
+    if rows is None or cols is None:
+        messagebox.showinfo("Annulé", "Lancement annulé.")
+        root.destroy()
+    else:
+        root.deiconify()  # Réaffiche la fenêtre principale
+        app = GVMControlApp(root, grid_rows=rows, grid_cols=cols)
+        root.mainloop()
+
