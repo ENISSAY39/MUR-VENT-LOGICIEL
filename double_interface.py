@@ -7,6 +7,7 @@ import random
 import os
 import serial
 import queue
+import csv
 
 from functools import partial
 
@@ -21,6 +22,10 @@ class GVMControlApp:
         self.is_modified = False
         self.grid_rows = grid_rows
         self.grid_cols = grid_cols
+        self.pwm_values = []
+        self.rpm_values = []
+        self.airflow_values = []
+        self.airflow_percentage = []
         self.rpm_data = {}
         self.fan_status = {}
         self.current_mode = "create"
@@ -33,12 +38,67 @@ class GVMControlApp:
         self.initialize_fan_data()
         self.create_frames()
         self.show_home()
+        self.charger_csv_ventilateur()
 
         self.update_thread = threading.Thread(target=self.update_rpm_data, daemon=True)
         self.update_thread.start()
         
         self.loop_profile_var = tk.BooleanVar(value=False)
 
+    def charger_csv_ventilateur(self):
+        # Récupérer le dossier où se trouve le script actuel
+        dossier_script = os.path.dirname(os.path.abspath(__file__))
+        # Construire le chemin complet vers le fichier CSV dans ce dossier
+        filepath = os.path.join(dossier_script, "data_value_fan.csv")
+        if not filepath:
+            return
+
+        self.pwm_values.clear()
+        self.rpm_values.clear()
+        self.airflow_values.clear()
+
+        try:
+            with open(filepath, newline='', encoding='latin-1') as csvfile:
+                reader = csv.reader(csvfile, delimiter=';')
+                next(reader)  # ignore l'en-tête
+                for row in reader:
+                    if len(row) != 3:
+                        continue
+                    try:
+                        pwm = int(row[0].strip())
+                        rpm = int(row[1].strip())
+                        airflow = float(row[2].strip().replace(',', '.'))
+                        self.pwm_values.append(pwm)
+                        self.rpm_values.append(rpm)
+                        self.airflow_values.append(airflow)
+                    except ValueError:
+                        continue
+            messagebox.showinfo("Succès", f"Fichier chargé : {os.path.basename(filepath)}")
+            self.generer_airflow_reduit()
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Erreur lors du chargement du CSV : {e}")
+
+    def generer_airflow_reduit(self):
+        if not self.airflow_values or len(self.airflow_values) < 2:
+            raise ValueError("La liste airflow_values doit contenir au moins deux valeurs.")
+
+        airflow_debut = self.airflow_values[0]
+        airflow_fin = self.airflow_values[-1]
+
+        # 17 valeurs également espacées entre airflow_debut et airflow_fin
+        step = (airflow_fin - airflow_debut) / 18  # 18 intervalles => 19 points entre les extrêmes
+        valeurs_interpolees = [airflow_debut + i * step for i in range(1, 18)]  # on saute le début (0) et la première vraie valeur
+
+        # On cherche pour chaque valeur interpolée la plus proche dans la vraie liste
+        airflow_reduit = [0.0]  # première valeur fixée à 0
+        airflow_reduit.append(self.airflow_values[0])  # deuxième valeur : premier élément réel
+
+        for v in valeurs_interpolees:
+            valeur_proche = min(self.airflow_values, key=lambda x: abs(x - v))
+            airflow_reduit.append(valeur_proche)
+
+        airflow_reduit.append(self.airflow_values[-1])  # dernière valeur réelle
+        self.airflow_percentage.append(airflow_reduit)
 
     def create_frames(self):
         self.home_frame = ttk.Frame(self.root)
