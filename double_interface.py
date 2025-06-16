@@ -673,10 +673,31 @@ class GVMControlApp:
         self.serial_active = False
         self.stop_button.config(state='disabled')
         self.send_button.config(state='normal')
+        self.send_zero_command()
 
         if hasattr(self, 'serial_log_window') and self.serial_log_window.winfo_exists():
             self.serial_log_window.destroy()
-        
+
+    def send_zero_command(self):
+        try:
+            ser = serial.Serial('/dev/serial0', 115200, timeout=1)
+
+            # Prépare un message JSON avec toutes les puissances à 0
+            zero_powers = {cell_id: [0]*9 for cell_id in self.fan_status}
+            cell_ids = sorted(zero_powers.keys())
+
+            for publish_cell in cell_ids:
+                json_message = {cell_id: zero_powers[cell_id] for cell_id in cell_ids}
+                json_message["Publish"] = int(publish_cell)
+                msg = json.dumps(json_message)
+                ser.write((msg + '\n').encode('utf-8'))
+
+            ser.close()
+            print("[INFO] Commande d'arrêt envoyée à tous les ventilateurs.")
+        except Exception as e:
+            print(f"[ERREUR] Impossible d'envoyer la commande d'arrêt : {e}")
+
+
     def update_serial_log_display(self):
         try:
             while not self.serial_queue.empty():
