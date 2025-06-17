@@ -818,6 +818,7 @@ class GVMControlApp:
                                 except Exception as e:
                                     self.serial_queue.put(f"Erreur d'envoi: {e}")
                             time.sleep(max(0, 1.0 - (time.time() - loop_start)))
+                            self.root.after(0, self.update_grid_with_powers, powers)
                 self.serial_queue.put("🛑 Envoi interrompu par l'utilisateur.")
             except Exception as e:
                 self.serial_queue.put(f"Erreur lors de l'exécution des séquences: {e}")
@@ -909,6 +910,18 @@ class GVMControlApp:
 
         except Exception:
             self.wind_requested_var.set("Erreur")
+
+    def update_grid_with_powers(self, powers):
+        for cell_id in powers:
+            for i in range(9):
+                power = powers[cell_id][i]
+                btn_key = f"execute_btn_{i}"
+                if btn_key in self.fan_status[cell_id]:
+                    btn = self.fan_status[cell_id][btn_key]
+                    btn.config(text=f"{power * 5}%",  # ⚠️ car l'indice PWM est entre 0 et 20
+                            bg="green" if power > 0 else "lightgrey",
+                            fg="white" if power > 0 else "black")
+
      
 class RPMReceiver:
     def __init__(self, port='/dev/serial0', baudrate=115200):
