@@ -473,8 +473,8 @@ class GVMControlApp:
 
             couleur = "#ccffcc" if ecart_abs <= 500 else "#ffcccc"
 
-            texte = (f"Puissance affichée: {power}%\n"
-                    f"RPM Consigne: {rpm_consigne}\n"
+            texte = (
+                f"RPM Consigne: {rpm_consigne}\n"
                     f"RPM Réel: {rpm_reel}\n"
                     f"Écart: {ecart:+} tr/min")
 
@@ -791,7 +791,7 @@ class GVMControlApp:
 
     def serial_send_loop(self):
         try:
-            ser = serial.Serial('/dev/serial0', 115200, timeout=1)
+            ser = serial.Serial('/dev/serial0', 9600, timeout=1)
         except Exception as e:
             self.serial_queue.put(f"Erreur ouverture port série: {e}")
             return
@@ -898,7 +898,7 @@ class GVMControlApp:
                 self.serial_queue.put(f"Erreur lors de l'envoi du profil statique: {e}")
 
     def stop_serial_communication(self):
-        ser = serial.Serial('/dev/serial0', 115200, timeout=1)
+        ser = serial.Serial('/dev/serial0', 9600, timeout=1)
         self.serial_queue = queue.Queue()
         
 # Dernier envoi pour arrêter tous les ventilateurs
