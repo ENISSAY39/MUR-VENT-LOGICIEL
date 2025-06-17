@@ -34,12 +34,12 @@ class GVMControlApp:
         self.sequence_buttons = []
         self.rpm_receiver = RPMReceiver()
         self.rpm_receiver.start()
-
+        
+        self.charger_csv_ventilateur()
         self.initialize_fan_data()
+        
         self.create_frames()
         self.show_home()
-        self.charger_csv_ventilateur()
-        self.obtenir_indice_depuis_pourcentage(50)
 
         self.update_thread = threading.Thread(target=self.update_rpm_data, daemon=True)
         self.update_thread.start()
@@ -190,8 +190,8 @@ class GVMControlApp:
         buttons_frame = ttk.Frame(container)
         buttons_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
-        ttk.Label(buttons_frame, text="Contrôles", font=('Helvetica', 12)).pack(pady=5)
-        ttk.Label(buttons_frame, text="Puissance (%):").pack(pady=(10, 0))
+        ttk.Label(buttons_frame, text="Création de profil", font=('Helvetica', 12)).pack(pady=5)
+        ttk.Label(buttons_frame, text="Débit d'air (%):").pack(pady=(10, 0))
 
         self.power_var_create = tk.IntVar(value=0)
         self.power_entry_var_create = tk.StringVar(value="0")
@@ -208,6 +208,7 @@ class GVMControlApp:
         entry.pack()
 
         self.power_entry_var_create.trace_add("write", partial(self.on_entry_change, "create"))
+
 
         ttk.Button(buttons_frame, text="Appliquer à sélection", command=lambda: self.apply_power_selected("create")).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Appliquer à tous", command=lambda: self.apply_power_all("create")).pack(pady=5, ipadx=10, ipady=5)
@@ -246,7 +247,27 @@ class GVMControlApp:
         entry.bind("<Return>", lambda e: self.valider_entree_puissance("create", afficher_alerte=True))
         entry.bind("<FocusOut>", lambda e: self.valider_entree_puissance("create", afficher_alerte=False))
 
+        # Cadre pour les vitesses de vent
+        wind_frame = ttk.LabelFrame(buttons_frame, text="Débits d'air [m^3/s]:", padding=5)
+        wind_frame.pack(pady=(10, 0), fill=tk.X)
+        
+         # 2. Vitesse de vent demandée (calculée dynamiquement)
+        ttk.Label(wind_frame, text="Débit d'air demandé [m^3/s]:").pack(anchor='w')
+        self.wind_requested_var_create = tk.StringVar(value="0")
+        ttk.Entry(wind_frame, textvariable=self.wind_requested_var_create, state='readonly').pack(pady=2, ipadx=10, ipady=5)
 
+        # 3. Vitesse de vent min
+        ttk.Label(wind_frame, text="Débit d'air minimun [m^3/s] :").pack(anchor='w')
+        self.wind_min_var_create = tk.StringVar(value=str(self.airflow_percentage[1]))
+        ttk.Entry(wind_frame, textvariable=self.wind_min_var_create, state='readonly').pack(fill=tk.X)
+
+        # 1. Vitesse de vent max
+        ttk.Label(wind_frame, text="Débit d'air maximum [m^3/s] :").pack(anchor='w')
+        self.wind_max_var_create = tk.StringVar(value=str(self.airflow_percentage[-1]))
+        ttk.Entry(wind_frame, textvariable=self.wind_max_var_create, state='readonly').pack(fill=tk.X)
+
+
+      
 
     def create_monitor_interface(self):
         # Frame principale pour la page "execute"
@@ -263,8 +284,8 @@ class GVMControlApp:
         buttons_frame = ttk.Frame(container)
         buttons_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
-        ttk.Label(buttons_frame, text="Contrôles", font=('Helvetica', 12)).pack(pady=5)
-        ttk.Label(buttons_frame, text="Puissance (%):").pack(pady=(10, 0))
+        ttk.Label(buttons_frame, text="Exécution de profil", font=('Helvetica', 12)).pack(pady=5)
+        ttk.Label(buttons_frame, text="Débit d'air (%):").pack(pady=(10, 0))
 
         self.power_var_execute = tk.IntVar(value=0)
         self.power_entry_var_execute = tk.StringVar(value="0")
@@ -317,6 +338,24 @@ class GVMControlApp:
         entry.bind("<Return>", lambda e: self.valider_entree_puissance("execute", afficher_alerte=True))
         entry.bind("<FocusOut>", lambda e: self.valider_entree_puissance("execute", afficher_alerte=False))
 
+        # Cadre pour les vitesses de vent
+        wind_frame = ttk.LabelFrame(buttons_frame, text="Débits d'air [m^3/s]:", padding=5)
+        wind_frame.pack(pady=(10, 0), fill=tk.X)
+        
+         # 2. Vitesse de vent demandée (calculée dynamiquement)
+        ttk.Label(wind_frame, text="Débit d'air demandé [m^3/s]:").pack(anchor='w')
+        self.wind_requested_var_execute = tk.StringVar(value="0")
+        ttk.Entry(wind_frame, textvariable=self.wind_requested_var_execute, state='readonly').pack(pady=2, ipadx=10, ipady=5)
+
+        # 3. Vitesse de vent min
+        ttk.Label(wind_frame, text="Débit d'air minimun [m^3/s] :").pack(anchor='w')
+        self.wind_min_var_execute = tk.StringVar(value=str(self.airflow_percentage[1]))
+        ttk.Entry(wind_frame, textvariable=self.wind_min_var_execute, state='readonly').pack(fill=tk.X)
+
+        # 1. Vitesse de vent max
+        ttk.Label(wind_frame, text="Débit d'air maximum [m^3/s] :").pack(anchor='w')
+        self.wind_max_var_execute = tk.StringVar(value=str(self.airflow_percentage[-1]))
+        ttk.Entry(wind_frame, textvariable=self.wind_max_var_execute, state='readonly').pack(fill=tk.X)
 
     def on_slider_change(self, mode, value):
         val = round(int(float(value)) / 5) * 5  # ✅ Forcer le pas de 5
@@ -325,6 +364,7 @@ class GVMControlApp:
         entry_var.set(str(val))
         power_var = getattr(self, f"power_var_{mode}")
         power_var.set(val)
+        self.update_requested_airflow(val)
 
 
     def on_entry_change(self, mode, *args):
@@ -334,6 +374,8 @@ class GVMControlApp:
             val = int(entry_var.get())
             val = max(0, min(100, val))
             power_var.set(val)
+            self.update_requested_airflow(val)
+
         except ValueError:
             pass
 
@@ -852,6 +894,22 @@ class GVMControlApp:
         except Exception as e:
             return f"Erreur : {str(e)}"
         
+    def update_requested_airflow(self, pourcentage):
+        try:
+            if pourcentage % 5 != 0:
+                pourcentage = round(pourcentage / 5) * 5
+            index = pourcentage // 5
+            airflow = self.airflow_percentage[index]
+            
+            if self.current_mode == "create":
+                self.wind_requested_var_create.set(str(round(airflow, 2)))
+
+            if self.current_mode == "execute":
+                self.wind_requested_var_execute.set(str(round(airflow, 2)))
+
+        except Exception:
+            self.wind_requested_var.set("Erreur")
+     
 class RPMReceiver:
     def __init__(self, port='/dev/serial0', baudrate=115200):
         self.port = port
