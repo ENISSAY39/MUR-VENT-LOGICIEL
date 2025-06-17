@@ -456,22 +456,32 @@ class GVMControlApp:
 
     def get_rpm_text(self, cell_id, fan_idx):
         try:
-            power = self.fan_status[cell_id]['power'][fan_idx]
+            btn_key = f"execute_btn_{fan_idx}"
+            btn = self.fan_status[cell_id].get(btn_key)
+            if not btn:
+                return "Aucun bouton trouvé", "#ffffe0"
+
+            # Lire le texte du bouton (ex: "75%")
+            text = btn.cget("text").replace('%', '').strip()
+            power = int(text) if text.isdigit() else 0
+
             indice = self.obtenir_indice_depuis_pourcentage(power)
             rpm_consigne = self.rpm_values[indice] if indice != -1 else 0
             rpm_reel = self.rpm_data.get(cell_id, [0]*9)[fan_idx]
             ecart = rpm_reel - rpm_consigne
             ecart_abs = abs(ecart)
 
-            couleur = "#ccffcc" if ecart_abs <= 500 else "#ffcccc"  # vert pâle ou rouge pâle
+            couleur = "#ccffcc" if ecart_abs <= 500 else "#ffcccc"
 
-            texte = (f"RPM Consigne: {rpm_consigne}\n"
+            texte = (f"Puissance affichée: {power}%\n"
+                    f"RPM Consigne: {rpm_consigne}\n"
                     f"RPM Réel: {rpm_reel}\n"
                     f"Écart: {ecart:+} tr/min")
 
             return texte, couleur
         except Exception as e:
-            return f"Erreur : {str(e)}", "#ffffe0"  # couleur par défaut
+            return f"Erreur : {str(e)}", "#ffffe0"
+
 
     
     def select_fan(self, cell_row, cell_col, fan_row, fan_col,mode):
