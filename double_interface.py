@@ -457,21 +457,22 @@ class GVMControlApp:
     def get_rpm_text(self, cell_id, fan_idx):
         try:
             power = self.fan_status[cell_id]['power'][fan_idx]
-            try:
-                indice = self.obtenir_indice_depuis_pourcentage(power)
-                rpm_consigne = self.rpm_values[indice]
-                if indice==-1:
-                    rpm_consigne = 0
-            except Exception:
-                indice = 'Erreur'
-            rpm_reel = self.rpm_data.get(cell_id, [])
+            indice = self.obtenir_indice_depuis_pourcentage(power)
+            rpm_consigne = self.rpm_values[indice] if indice != -1 else 0
+            rpm_reel = self.rpm_data.get(cell_id, [0]*9)[fan_idx]
+            ecart = rpm_reel - rpm_consigne
+            ecart_abs = abs(ecart)
 
-            if 0 <= fan_idx < len(rpm_reel):
-                return f"RPM Consigne: {rpm_consigne} \n RPM Réel: {rpm_reel[fan_idx]}"
-            else:
-                return "RPM non disponible"
+            couleur = "#ccffcc" if ecart_abs <= 500 else "#ffcccc"  # vert pâle ou rouge pâle
+
+            texte = (f"RPM Consigne: {rpm_consigne}\n"
+                    f"RPM Réel: {rpm_reel}\n"
+                    f"Écart: {ecart:+} tr/min")
+
+            return texte, couleur
         except Exception as e:
-            return f"Erreur : {str(e)}"
+            return f"Erreur : {str(e)}", "#ffffe0"  # couleur par défaut
+
     
     def select_fan(self, cell_row, cell_col, fan_row, fan_col,mode):
         cell_id = f"{cell_row}{cell_col}"
@@ -1013,11 +1014,15 @@ class Tooltip:
     def show_tip(self, event=None):
         if self.tipwindow or not self.textfunc:
             return
-        text = self.textfunc()
+        result = self.textfunc()
+        if isinstance(result, tuple):
+            text, bg_color = result
+        else:
+            text, bg_color = result, "#ffffe0"  # défaut
+
         if not text:
             return
 
-        x = y = 0
         x = self.widget.winfo_rootx() + 20
         y = self.widget.winfo_rooty() + 20
         self.tipwindow = tw = tk.Toplevel(self.widget)
@@ -1025,8 +1030,8 @@ class Tooltip:
         tw.wm_geometry(f"+{x}+{y}")
 
         label = tk.Label(tw, text=text, justify=tk.LEFT,
-                         background="#ffffe0", relief=tk.SOLID, borderwidth=1,
-                         font=("tahoma", "8", "normal"))
+                        background=bg_color, relief=tk.SOLID, borderwidth=1,
+                        font=("tahoma", "8", "normal"))
         label.pack(ipadx=1)
 
     def hide_tip(self, event=None):
