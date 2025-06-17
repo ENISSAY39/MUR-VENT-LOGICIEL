@@ -918,7 +918,7 @@ class GVMControlApp:
                 btn_key = f"execute_btn_{i}"
                 if btn_key in self.fan_status[cell_id]:
                     btn = self.fan_status[cell_id][btn_key]
-                    btn.config(text=f"{power * 5}%",  # ⚠️ car l'indice PWM est entre 0 et 20
+                    btn.config(text=f"{power}%",  # ⚠️ car l'indice PWM est entre 0 et 20
                             bg="green" if power > 0 else "lightgrey",
                             fg="white" if power > 0 else "black")
 
