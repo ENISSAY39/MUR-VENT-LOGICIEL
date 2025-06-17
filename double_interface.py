@@ -833,13 +833,13 @@ class GVMControlApp:
                             
                 # Dernier envoi pour arrêter tous les ventilateurs
                 zero_powers = {
-                    cell_id: [0] * 9 for cell_id in self.fan_status
+                    cell_id: [-1] * 9 for cell_id in self.fan_status
                 }
                 json_message = {
-                    cell_id: [0] * 9 for cell_id in self.fan_status
+                    cell_id: [-1] * 9 for cell_id in self.fan_status
                 }
                 for cell_id in self.fan_status:
-                    json_message[cell_id] = [0] * 9
+                    json_message[cell_id] = [-1] * 9
                     json_message["Publish"] = int(cell_id)
                     try:
                         msg = json.dumps(json_message)
@@ -878,13 +878,13 @@ class GVMControlApp:
                     time.sleep(max(0, 1.0 - (time.time() - loop_start)))
                 # Dernier envoi pour arrêter tous les ventilateurs
                 zero_powers = {
-                    cell_id: [0] * 9 for cell_id in self.fan_status
+                    cell_id: [-1] * 9 for cell_id in self.fan_status
                 }
                 json_message = {
-                    cell_id: [0] * 9 for cell_id in self.fan_status
+                    cell_id: [-1] * 9 for cell_id in self.fan_status
                 }
                 for cell_id in self.fan_status:
-                    json_message[cell_id] = [0] * 9
+                    json_message[cell_id] = [-1] * 9
                     json_message["Publish"] = int(cell_id)
                     try:
                         msg = json.dumps(json_message)
@@ -898,12 +898,34 @@ class GVMControlApp:
                 self.serial_queue.put(f"Erreur lors de l'envoi du profil statique: {e}")
 
     def stop_serial_communication(self):
+        ser = serial.Serial('/dev/serial0', 115200, timeout=1)
+        self.serial_queue = queue.Queue()
+        
+# Dernier envoi pour arrêter tous les ventilateurs
+        zero_powers = {
+            cell_id: [-1] * 9 for cell_id in self.fan_status
+        }
+        json_message = {
+            cell_id: [-1] * 9 for cell_id in self.fan_status
+        }
+        for cell_id in self.fan_status:
+            json_message[cell_id] = [-1] * 9
+            json_message["Publish"] = int(cell_id)
+            
+            try:
+                msg = json.dumps(json_message)
+                ser.write((msg + '\n').encode('utf-8'))
+                self.serial_queue.put(f"🛑 Arrêt → {msg}")
+            except Exception as e:
+                self.serial_queue.put(f"Erreur lors de l'arrêt : {e}")
+
         self.serial_active = False
         self.stop_button.config(state='disabled')
         self.send_button.config(state='normal')
 
-        if hasattr(self, 'serial_log_window') and self.serial_log_window.winfo_exists():
-            self.serial_log_window.destroy()
+        #if hasattr(self, 'serial_log_window') and self.serial_log_window.winfo_exists():
+            #self.serial_log_window.destroy()
+
         
     def update_serial_log_display(self):
         try:
