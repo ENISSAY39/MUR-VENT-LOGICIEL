@@ -243,6 +243,10 @@ class GVMControlApp:
         self.loop_checkbox = ttk.Checkbutton(sequence_frame, text="Boucler le profil", variable=self.loop_profile_var)
         self.loop_checkbox.pack(pady=5)
 
+        entry.bind("<Return>", lambda e: self.valider_entree_puissance("create", afficher_alerte=True))
+        entry.bind("<FocusOut>", lambda e: self.valider_entree_puissance("create", afficher_alerte=False))
+
+
 
     def create_monitor_interface(self):
         # Frame principale pour la page "execute"
@@ -310,10 +314,18 @@ class GVMControlApp:
         if not hasattr(self, 'back_button'):
             self.back_button = ttk.Button(self.root, text="Retour à l'accueil", command=self.show_home)
 
+        entry.bind("<Return>", lambda e: self.valider_entree_puissance("execute", afficher_alerte=True))
+        entry.bind("<FocusOut>", lambda e: self.valider_entree_puissance("execute", afficher_alerte=False))
+
+
     def on_slider_change(self, mode, value):
-        val = int(float(value))
+        val = round(int(float(value)) / 5) * 5  # ✅ Forcer le pas de 5
+        val = max(0, min(100, val))  # S'assure que la valeur reste entre 0 et 100
         entry_var = getattr(self, f"power_entry_var_{mode}")
         entry_var.set(str(val))
+        power_var = getattr(self, f"power_var_{mode}")
+        power_var.set(val)
+
 
     def on_entry_change(self, mode, *args):
         try:
@@ -324,7 +336,29 @@ class GVMControlApp:
             power_var.set(val)
         except ValueError:
             pass
-        
+
+    def valider_entree_puissance(self, mode, afficher_alerte=False):
+        try:
+            entry_var = getattr(self, f"power_entry_var_{mode}")
+            power_var = getattr(self, f"power_var_{mode}")
+            val = int(entry_var.get())
+
+            if val > 100:
+                val = 100
+                if afficher_alerte:
+                    messagebox.showwarning("Puissance trop élevée", "La puissance maximale est 100%. Elle a été fixée à 100%.")
+
+            elif val < 0:
+                val = 0
+                    
+            val = round(val / 5) * 5
+            entry_var.set(str(val))
+            power_var.set(val)
+
+        except ValueError:
+            if afficher_alerte:
+                messagebox.showerror("Entrée invalide", "Veuillez entrer un nombre entier entre 0 et 100.")
+
     def update_profile_label(self):
         if hasattr(self, 'profile_label'):
             self.profile_label.config(text=f"Profil: {self.profile_name}")
