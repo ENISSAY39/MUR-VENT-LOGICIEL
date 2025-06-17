@@ -830,6 +830,23 @@ class GVMControlApp:
                                     self.serial_queue.put(f"Erreur d'envoi: {e}")
                             time.sleep(max(0, 1.0 - (time.time() - loop_start)))
                             self.root.after(0, self.update_grid_with_powers, powers)
+                            
+                # Dernier envoi pour arrêter tous les ventilateurs
+                zero_powers = {
+                    cell_id: [0] * 9 for cell_id in self.fan_status
+                }
+                json_message = {
+                    cell_id: [0] * 9 for cell_id in self.fan_status
+                }
+                for cell_id in self.fan_status:
+                    json_message[cell_id] = [0] * 9
+                    json_message["Publish"] = int(cell_id)
+                    try:
+                        msg = json.dumps(json_message)
+                        ser.write((msg + '\n').encode('utf-8'))
+                        self.serial_queue.put(f"🛑 Arrêt → {msg}")
+                    except Exception as e:
+                        self.serial_queue.put(f"Erreur lors de l'arrêt : {e}")
                 self.serial_queue.put("🛑 Envoi interrompu par l'utilisateur.")
             except Exception as e:
                 self.serial_queue.put(f"Erreur lors de l'exécution des séquences: {e}")
@@ -859,6 +876,22 @@ class GVMControlApp:
                         except Exception as e:
                             self.serial_queue.put(f"Erreur d'envoi (statique): {e}")
                     time.sleep(max(0, 1.0 - (time.time() - loop_start)))
+                # Dernier envoi pour arrêter tous les ventilateurs
+                zero_powers = {
+                    cell_id: [0] * 9 for cell_id in self.fan_status
+                }
+                json_message = {
+                    cell_id: [0] * 9 for cell_id in self.fan_status
+                }
+                for cell_id in self.fan_status:
+                    json_message[cell_id] = [0] * 9
+                    json_message["Publish"] = int(cell_id)
+                    try:
+                        msg = json.dumps(json_message)
+                        ser.write((msg + '\n').encode('utf-8'))
+                        self.serial_queue.put(f"🛑 Arrêt → {msg}")
+                    except Exception as e:
+                        self.serial_queue.put(f"Erreur lors de l'arrêt : {e}")
 
                 self.serial_queue.put("🛑 Envoi statique arrêté par l'utilisateur.")
             except Exception as e:
@@ -895,6 +928,10 @@ class GVMControlApp:
     def update_rpm_display(self, rpm_values):
         for cell_id, rpms in rpm_values.items():
             self.rpm_data[cell_id] = rpms  # met à jour les données utilisées par les tooltips
+
+        # 💡 Mise à jour visuelle immédiate des couleurs
+        self.actualiser_couleurs_ventilateurs()
+
 
     def get_rpm_text_consigne(self, cell_id, fan_idx):
         try:
@@ -933,7 +970,48 @@ class GVMControlApp:
                             bg="green" if power > 0 else "lightgrey",
                             fg="white" if power > 0 else "black")
 
-     
+    def actualiser_couleurs_ventilateurs(self):
+        for cell_id in self.fan_status:
+            for fan_idx in range(9):
+                btn_key = f"execute_btn_{fan_idx}"
+                btn = self.fan_status[cell_id].get(btn_key)
+                if not btn:
+                    continue
+
+                # Ne pas modifier les ventilateurs sélectionnés (couleur bleue)
+                if (cell_id, fan_idx) in self.selected_fans:
+                    continue
+
+                # Lire le pourcentage directement depuis le texte du bouton
+                try:
+                    text = btn.cget("text").replace('%', '').strip()
+                    power = int(text) if text.isdigit() else 0
+                except:
+                    power = 0
+
+                # S'il est éteint
+                if power == 0:
+                    btn.config(bg="lightgrey", fg="black")
+                    continue
+
+                # Calcul du RPM consigne
+                try:
+                    indice = self.obtenir_indice_depuis_pourcentage(power)
+                    rpm_consigne = self.rpm_values[indice] if indice != -1 else 0
+                except:
+                    rpm_consigne = 0
+
+                # RPM réel
+                rpm_reel = self.rpm_data.get(cell_id, [0]*9)[fan_idx]
+                ecart = abs(rpm_reel - rpm_consigne)
+
+                # Appliquer la couleur selon l'écart
+                if ecart <= 500:
+                    btn.config(bg="green", fg="white")
+                else:
+                    btn.config(bg="red", fg="white")
+
+
 class RPMReceiver:
     def __init__(self, port='/dev/serial0', baudrate=115200):
         self.port = port
