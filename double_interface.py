@@ -829,8 +829,23 @@ class GVMControlApp:
                 if not self.serial_active:
                     return  # 🛑 l'utilisateur a arrêté l'envoi
 
-                self.stop_serial_communication()
-                self.serial_queue.put("🛑 Envoi interrompu par l'utilisateur.")
+                # Si l'utilisateur n'a pas arrêté manuellement
+                if self.serial_active:
+                    self.serial_active = False
+                    self.serial_queue.put("✅ Profil dynamique terminé.")
+                    
+                    # Arrêt propre du port série
+                    if self.ser and self.ser.is_open:
+                        try:
+                            self.ser.close()
+                            self.serial_queue.put("🔌 Port série fermé.")
+                        except Exception as e:
+                            self.serial_queue.put(f"Erreur fermeture série : {e}")
+                    
+                    # Réactive les boutons
+                    self.root.after(0, lambda: self.stop_button.config(state='disabled'))
+                    self.root.after(0, lambda: self.send_button.config(state='normal'))
+
             except Exception as e:
                 self.serial_queue.put(f"Erreur lors de l'exécution des séquences: {e}")
        
