@@ -149,7 +149,7 @@ class GVMControlApp:
     def show_home(self):
         self.hide_all_frames()
         self.home_frame.pack(fill=tk.BOTH, expand=True)
-        self.stop_serial_communication()
+        #self.stop_serial_communication()
 
     def show_grid_mode(self, mode):
         self.current_mode = mode
@@ -1118,37 +1118,55 @@ class Tooltip:
         self.widget = widget
         self.textfunc = textfunc
         self.tipwindow = None
+        self.label = None
+        self.update_loop_id = None
+
         self.widget.bind("<Enter>", self.show_tip)
         self.widget.bind("<Leave>", self.hide_tip)
 
     def show_tip(self, event=None):
-        if self.tipwindow or not self.textfunc:
-            return
-        result = self.textfunc()
-        if isinstance(result, tuple):
-            text, bg_color = result
-        else:
-            text, bg_color = result, "#ffffe0"  # défaut
+        if self.tipwindow is not None:
+            return  # Bulle déjà affichée
 
-        if not text:
-            return
-
+        # Créer la fenêtre et le label
         x = self.widget.winfo_rootx() + 20
         y = self.widget.winfo_rooty() + 20
         self.tipwindow = tw = tk.Toplevel(self.widget)
         tw.wm_overrideredirect(True)
         tw.wm_geometry(f"+{x}+{y}")
 
-        label = tk.Label(tw, text=text, justify=tk.LEFT,
-                        background=bg_color, relief=tk.SOLID, borderwidth=1,
-                        font=("tahoma", "8", "normal"))
-        label.pack(ipadx=1)
+        self.label = tk.Label(tw, justify=tk.LEFT, background="#ffffe0",
+                              relief=tk.SOLID, borderwidth=1, font=("tahoma", "8", "normal"))
+        self.label.pack(ipadx=1)
+
+        # Démarre la boucle de mise à jour
+        self._update_tip_content()
+
+    def _update_tip_content(self):
+        if self.tipwindow is None or self.label is None:
+            return
+
+        result = self.textfunc()
+        if isinstance(result, tuple):
+            text, bg_color = result
+        else:
+            text, bg_color = result, "#ffffe0"
+
+        self.label.config(text=text, background=bg_color)
+
+        # Replanifie la mise à jour dans 1 seconde
+        self.update_loop_id = self.widget.after(1000, self._update_tip_content)
 
     def hide_tip(self, event=None):
-        tw = self.tipwindow
-        if tw:
-            tw.destroy()
-        self.tipwindow = None
+        if self.update_loop_id:
+            self.widget.after_cancel(self.update_loop_id)
+            self.update_loop_id = None
+
+        if self.tipwindow:
+            self.tipwindow.destroy()
+            self.tipwindow = None
+            self.label = None
+
 
 if __name__ == "__main__":
     root = tk.Tk()
