@@ -45,7 +45,7 @@ class GVMControlApp:
         self.update_thread.start()
         
         self.loop_profile_var = tk.BooleanVar(value=False)
-
+        self.ser = None
     def charger_csv_ventilateur(self):
         # Récupérer le dossier où se trouve le script actuel
         dossier_script = os.path.dirname(os.path.abspath(__file__))
@@ -785,7 +785,7 @@ class GVMControlApp:
 
     def serial_send_loop(self):
         try:
-            ser = serial.Serial('/dev/serial0', 9600, timeout=1)
+            self.ser = serial.Serial('/dev/serial0', 9600, timeout=1)
         except Exception as e:
             self.serial_queue.put(f"Erreur ouverture port série: {e}")
             return
@@ -793,50 +793,49 @@ class GVMControlApp:
         if self.sequences:
             try:
                 self.serial_queue.put("🚀 Démarrage de l'envoi cyclique des séquences.")
-                
-                while self.serial_active:
-                    for seq_name in self.sequences:
-                        if not self.serial_active:
-                            break
+                for seq_name in self.sequences:
+                    if not self.serial_active:
+                        break
 
-                        seq = self.sequences[seq_name]
-                        powers = seq['powers']
-                        duration = seq['duration']
-                        self.serial_queue.put(f"⏱ Envoi de la séquence '{seq_name}' pendant {duration} secondes")
+                    seq = self.sequences[seq_name]
+                    powers = seq['powers']
+                    duration = seq['duration']
+                    self.serial_queue.put(f"⏱ Envoi de la séquence '{seq_name}' pendant {duration} secondes")
 
-                        cell_ids = sorted(powers.keys())
-                        seq_start = time.time()
-                        seq_end = seq_start + duration
+                    cell_ids = sorted(powers.keys())
+                    seq_start = time.time()
+                    seq_end = seq_start + duration
 
-                        while time.time() < seq_end and self.serial_active:
-                            loop_start = time.time()
-                            for publish_cell in cell_ids:
-                                json_message = {
-                                    cell_id: [self.obtenir_indice_depuis_pourcentage(p) for p in powers[cell_id]]
-                                    for cell_id in cell_ids
-                                }
-                                json_message["Publish"] = int(publish_cell)
-                                try:
-                                    msg = json.dumps(json_message)
-                                    ser.write((msg + '\n').encode('utf-8'))
-                                    self.serial_queue.put(f"Envoyé → {msg}")
-                                except Exception as e:
-                                    self.serial_queue.put(f"Erreur d'envoi: {e}")
-                            time.sleep(max(0, 1.0 - (time.time() - loop_start)))
-                            self.root.after(0, self.update_grid_with_powers, powers)
+                    while time.time() < seq_end and self.serial_active:
+                        loop_start = time.time()
+                        for publish_cell in cell_ids:
+                            json_message = {
+                                cell_id: [self.obtenir_indice_depuis_pourcentage(p) for p in powers[cell_id]]
+                                for cell_id in cell_ids
+                            }
+                            json_message["Publish"] = int(publish_cell)
+                            try:
+                                msg = json.dumps(json_message)
+                                self.ser.write((msg + '\n').encode('utf-8'))
+                                self.serial_queue.put(f"Envoyé → {msg}")
+                            except Exception as e:
+                                self.serial_queue.put(f"Erreur d'envoi: {e}")
+                        time.sleep(max(0, 1.0 - (time.time() - loop_start)))
+                        self.root.after(0, self.update_grid_with_powers, powers)
 
                 # Dernier envoi pour arrêt
                 for cell_id in self.fan_status:
                     json_message = {
-                        cell_id: [-1] * 9,
-                        "Publish": int(cell_id)
+                        cell_id: [-1]*9
+                        for cell_id in cell_ids
                     }
+                    json_message["Publish"] = int(publish_cell)
                     try:
                         msg = json.dumps(json_message)
-                        ser.write((msg + '\n').encode('utf-8'))
-                        self.serial_queue.put(f"🛑 Arrêt → {msg}")
+                        self.ser.write((msg + '\n').encode('utf-8'))
+                        self.serial_queue.put(f"Envoyé → {msg}")
                     except Exception as e:
-                        self.serial_queue.put(f"Erreur lors de l'arrêt : {e}")
+                        self.serial_queue.put(f"Erreur d'envoi: {e}")
 
                 self.serial_queue.put("🛑 Envoi interrompu par l'utilisateur.")
             except Exception as e:
@@ -863,7 +862,7 @@ class GVMControlApp:
 
                         try:
                             msg = json.dumps(json_message)
-                            ser.write((msg + '\n').encode('utf-8'))
+                            self.ser.write((msg + '\n').encode('utf-8'))
                             self.serial_queue.put(f"Envoyé (statique) → {msg}")
                         except Exception as e:
                             self.serial_queue.put(f"Erreur d'envoi (statique): {e}")
@@ -876,14 +875,17 @@ class GVMControlApp:
                     cell_id: [-1] * 9 for cell_id in self.fan_status
                 }
                 for cell_id in self.fan_status:
-                    json_message[cell_id] = [-1] * 9
-                    json_message["Publish"] = int(cell_id)
+                    json_message = {
+                        cell_id: [-1]*9
+                        for cell_id in cell_ids
+                    }
+                    json_message["Publish"] = int(publish_cell)
                     try:
                         msg = json.dumps(json_message)
-                        ser.write((msg + '\n').encode('utf-8'))
-                        self.serial_queue.put(f"🛑 Arrêt → {msg}")
+                        self.ser.write((msg + '\n').encode('utf-8'))
+                        self.serial_queue.put(f"Envoyé → {msg}")
                     except Exception as e:
-                        self.serial_queue.put(f"Erreur lors de l'arrêt : {e}")
+                        self.serial_queue.put(f"Erreur d'envoi: {e}")
 
                 self.serial_queue.put("🛑 Envoi statique arrêté par l'utilisateur.")
             except Exception as e:
@@ -899,30 +901,29 @@ class GVMControlApp:
         self.stop_button.config(state='disabled')
         self.send_button.config(state='normal')
 
-        try:
-            ser = serial.Serial('/dev/serial0', 9600, timeout=1)
-        except Exception as e:
-            self.serial_queue.put(f"Erreur ouverture port série (à l'arrêt) : {e}")
-            return
-
-        # Dernier envoi : -1 sur tous les ventilateurs
-        for cell_id in self.fan_status:
-            json_message = {
-                f"\"{cell_id}\"": [-1] * 9,  # 🟡 Format spécial \"11\"
-                "Publish": int(cell_id)
-            }
-
-            # Convertit en JSON et envoie
-            standard_json = json.dumps(json_message)
-            escaped_json = standard_json.replace('"', r'\"')
-
+        if self.ser and self.ser.is_open:
             try:
-                ser.write((escaped_json + '\n').encode('utf-8'))
-                self.serial_queue.put(f"🛑 JSON d'arrêt envoyé → {escaped_json}")
+                for publish_cell in cell_ids:
+                    powers = {cell_id: self.fan_status[cell_id]['power'][:] for cell_id in self.fan_status}
+                    cell_ids = sorted(powers.keys())
+                    # Dernier envoi : -1 sur tous les ventilateurs
+                    for cell_id in self.fan_status:
+                        json_message = {
+                            cell_id: [-1]*9
+                            for cell_id in cell_ids
+                        }
+                        json_message["Publish"] = int(publish_cell)
+                        try:
+                            msg = json.dumps(json_message)
+                            self.ser.write((msg + '\n').encode('utf-8'))
+                            self.serial_queue.put(f"Envoyé → {msg}")
+                        except Exception as e:
+                            self.serial_queue.put(f"Erreur d'envoi: {e}")
             except Exception as e:
-                self.serial_queue.put(f"Erreur lors de l'envoi du JSON d'arrêt : {e}")
-
-        
+                self.serial_queue.put("Port serie fermé")
+        else:
+            self.serial_queue.put("aucun port série actif")
+    
     def update_serial_log_display(self):
         try:
             while not self.serial_queue.empty():
