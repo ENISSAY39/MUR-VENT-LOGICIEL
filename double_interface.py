@@ -826,10 +826,11 @@ class GVMControlApp:
                     return  # 🛑 l'utilisateur a arrêté l'envoi
 
                 # Dernier envoi pour arrêt
-                for cell_id in self.fan_status:
+                cell_ids = sorted(self.fan_status.keys())
+                for publish_cell in cell_ids :
                     json_message = {
-                        cell_id: [-1]*9
-                        for cell_id in cell_ids
+                        cid: [-1]*9
+                        for cid in cell_ids
                     }
                     json_message["Publish"] = int(publish_cell)
                     try:
@@ -904,7 +905,7 @@ class GVMControlApp:
                 cell_ids = sorted(self.fan_status.keys())
                 for publish_cell in cell_ids:
                     json_message = {
-                        cell_id: [-1] * 9 for cell_id in self.fan_status
+                        cid: [-1] * 9 for cid in cell_ids
                     }
                     json_message["Publish"] = int(publish_cell)
                     msg = json.dumps(json_message)
