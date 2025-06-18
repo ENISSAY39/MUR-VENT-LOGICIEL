@@ -150,7 +150,9 @@ class GVMControlApp:
     def show_home(self):
         self.hide_all_frames()
         self.home_frame.pack(fill=tk.BOTH, expand=True)
-        #self.stop_serial_communication()
+        self.sequences.clear()
+        self.actualiser_sequence_buttons()
+        self.mark_as_modified
 
     def show_grid_mode(self, mode):
         self.current_mode = mode
@@ -303,7 +305,7 @@ class GVMControlApp:
 
         ttk.Button(buttons_frame, text="Appliquer à sélection", command=lambda: self.apply_power_selected("execute")).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Appliquer à tous", command=lambda: self.apply_power_all("execute")).pack(pady=5, ipadx=10, ipady=5)
-        ttk.Button(buttons_frame, text="Reset la grille", command=lambda: self.reset_grille("execute")).pack(pady=5, ipadx=10, ipady=5)
+        ttk.Button(buttons_frame, text="Reset la grille + clear sequences", command=lambda: self.reset_grille("execute")).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Charger profil", command=self.charger_profil).pack(pady=5, ipadx=10, ipady=5)
         self.send_button = ttk.Button(buttons_frame, text="Envoyer commande", command=self.start_serial_communication, state='normal')
         self.send_button.pack(pady=5, ipadx=10, ipady=5)
@@ -531,6 +533,10 @@ class GVMControlApp:
         self.mark_as_modified()
         self.stop_serial_communication()
         self.selected_fans.clear()  # Désélectionne tous les ventilateurs
+
+        if mode == "execute":
+            self.sequences.clear()
+            self.actualiser_sequence_buttons()
 
         for cell_id, data in self.fan_status.items():
             data['power'] = [0] * 9  # Remet les puissances à 0
@@ -1028,7 +1034,7 @@ class GVMControlApp:
 
 
 class RPMReceiver:
-    def __init__(self, port='/dev/serial0', baudrate=115200):
+    def __init__(self, port='/dev/serial0', baudrate=9600):
         self.port = port
         self.baudrate = baudrate
         self.serial_conn = None
