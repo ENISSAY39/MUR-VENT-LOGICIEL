@@ -810,6 +810,9 @@ class GVMControlApp:
                     while time.time() < seq_end and self.serial_active:
                         loop_start = time.time()
                         for publish_cell in cell_ids:
+                            if not self.serial_active:
+                                break
+
                             json_message = {
                                 cell_id: [self.obtenir_indice_depuis_pourcentage(p) for p in powers[cell_id]]
                                 for cell_id in cell_ids
@@ -843,6 +846,9 @@ class GVMControlApp:
                     loop_start = time.time()
 
                     for publish_cell in cell_ids:
+                        if not self.serial_active:
+                            break
+
                         json_message = {
                             cell_id: [self.obtenir_indice_depuis_pourcentage(p) for p in powers[cell_id]]
                             for cell_id in cell_ids
@@ -863,7 +869,9 @@ class GVMControlApp:
                 self.serial_queue.put(f"Erreur lors de l'envoi du profil statique: {e}")
 
     def stop_serial_communication(self):
+        self.serial_active = False  # 🛑 Met tout de suite l'arrêt
         self.serial_queue = queue.Queue()
+
         self.stop_button.config(state='disabled')
         self.send_button.config(state='normal')
 
@@ -885,8 +893,11 @@ class GVMControlApp:
         else:
             self.serial_queue.put("Aucun port série actif à fermer.")
 
-        self.serial_active = False  # Signale au thread de s'arrêter
-        
+        # 🔒 Ferme la fenêtre de log si elle existe
+        # if hasattr(self, 'serial_log_window') and self.serial_log_window.winfo_exists():
+        #     self.serial_log_window.destroy()
+
+
     def update_serial_log_display(self):
         try:
             while not self.serial_queue.empty():
@@ -899,6 +910,12 @@ class GVMControlApp:
             pass
         if self.serial_active:
             self.root.after(100, self.update_serial_log_display)
+        else:
+            if hasattr(self, 'serial_log_text'):
+                self.serial_log_text.configure(state='normal')
+                self.serial_log_text.insert(tk.END, "\n🛑 Affichage des logs arrêté.\n")
+                self.serial_log_text.configure(state='disabled')
+                self.serial_log_text.see(tk.END)
 
     def update_rpm_data(self):
         while True:
