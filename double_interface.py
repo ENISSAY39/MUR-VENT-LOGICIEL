@@ -802,7 +802,6 @@ class GVMControlApp:
             self.serial_queue.put("🚀 Démarrage de l'envoi des séquences dynamiques.")
             try:
                 while self.serial_active:
-                    # 🔁 Boucle complète sur toutes les séquences
                     for seq_name in self.sequences:
                         if not self.serial_active:
                             break
@@ -834,9 +833,12 @@ class GVMControlApp:
                             time.sleep(max(0, 1.0 - (time.time() - loop_start)))
                             self.root.after(0, self.update_grid_with_powers, powers)
 
-                    # 🔁 Si la case "boucler" n'est pas cochée → on sort de la boucle
+                    # 👉 Correction ici :
                     if not self.loop_profile_var.get():
-                        break
+                        break  # on sort du while principal
+                    else:
+                        self.serial_queue.put("🔁 Reprise de la boucle dynamique")
+
 
                 # Dernier envoi pour arrêter tous les ventilateurs
                 zero_powers = {
