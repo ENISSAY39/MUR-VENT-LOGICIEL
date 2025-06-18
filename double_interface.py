@@ -895,7 +895,7 @@ class GVMControlApp:
 
     def stop_serial_communication(self):
         self.serial_active = False  # Signale au thread de s'arrêter
-
+        self.serial_queue = queue.Queue()
         self.stop_button.config(state='disabled')
         self.send_button.config(state='normal')
 
