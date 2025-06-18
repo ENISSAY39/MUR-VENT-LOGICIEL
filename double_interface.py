@@ -44,8 +44,6 @@ class GVMControlApp:
         self.update_thread = threading.Thread(target=self.update_rpm_data, daemon=True)
         self.update_thread.start()
         
-        self.loop_profile_var = tk.BooleanVar(value=False)
-
     def charger_csv_ventilateur(self):
         # Récupérer le dossier où se trouve le script actuel
         dossier_script = os.path.dirname(os.path.abspath(__file__))
@@ -304,10 +302,6 @@ class GVMControlApp:
         ttk.Button(buttons_frame, text="Appliquer à tous", command=lambda: self.apply_power_all("execute")).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Reset la grille", command=lambda: self.reset_grille("execute")).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Charger profil", command=self.charger_profil).pack(pady=5, ipadx=10, ipady=5)
-
-        self.loop_checkbox = ttk.Checkbutton(buttons_frame, text="Boucler le profil", variable=self.loop_profile_var)
-        self.loop_checkbox.pack(pady=5)
-
 
         self.send_button = ttk.Button(buttons_frame, text="Envoyer commande", command=self.start_serial_communication, state='normal')
         self.send_button.pack(pady=5, ipadx=10, ipady=5)
@@ -691,7 +685,6 @@ class GVMControlApp:
                 data = {
                     "type": "dynamique",
                     "sequences": self.sequences,
-                    "loop": self.loop_profile_var.get()  # 🔁 Ajout ici
                 }
 
             else:
@@ -720,8 +713,6 @@ class GVMControlApp:
             with open(filepath, "r") as f:
                 data = json.load(f)
             
-            self.loop_profile_var.set(data.get("loop", False))  # 🔁 Charge l'état si présent
-
             profil_type = data.get("type")
 
             self.reset_grille(self.current_mode)
@@ -802,11 +793,8 @@ class GVMControlApp:
             self.serial_queue.put("🚀 Démarrage de l'envoi des séquences dynamiques.")
             try:
                 # 🔁 Nouvelle boucle pour gérer la répétition des séquences
-                while self.serial_active and (self.loop_profile_var.get() or True):
+                while self.serial_active:
                     for seq_name in self.sequences:
-                        if not self.serial_active:
-                            break
-
                         seq = self.sequences[seq_name]
                         powers = seq['powers']
                         duration = seq['duration']
