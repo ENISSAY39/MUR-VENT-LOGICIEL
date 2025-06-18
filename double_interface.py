@@ -241,9 +241,6 @@ class GVMControlApp:
         ttk.Button(sequence_frame, text="Sauvegarder profil", command=self.sauvegarder_profil).pack(pady=2, ipadx=10, ipady=5)
         ttk.Button(sequence_frame, text="Charger profil", command=self.charger_profil).pack(pady=2, ipadx=10, ipady=5)
 
-        self.loop_checkbox = ttk.Checkbutton(sequence_frame, text="Boucler le profil", variable=self.loop_profile_var)
-        self.loop_checkbox.pack(pady=5)
-
         entry.bind("<Return>", lambda e: self.valider_entree_puissance("create", afficher_alerte=True))
         entry.bind("<FocusOut>", lambda e: self.valider_entree_puissance("create", afficher_alerte=False))
 
@@ -307,6 +304,11 @@ class GVMControlApp:
         ttk.Button(buttons_frame, text="Appliquer à tous", command=lambda: self.apply_power_all("execute")).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Reset la grille", command=lambda: self.reset_grille("execute")).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Charger profil", command=self.charger_profil).pack(pady=5, ipadx=10, ipady=5)
+
+        self.loop_checkbox = ttk.Checkbutton(buttons_frame, text="Boucler le profil", variable=self.loop_profile_var)
+        self.loop_checkbox.pack(pady=5)
+
+
         self.send_button = ttk.Button(buttons_frame, text="Envoyer commande", command=self.start_serial_communication, state='normal')
         self.send_button.pack(pady=5, ipadx=10, ipady=5)
         self.stop_button = ttk.Button(buttons_frame, text="Arrêter l'envoi", command=self.stop_serial_communication, state='disabled')
@@ -800,11 +802,10 @@ class GVMControlApp:
             # 🔁 Envoi continu des séquences
             try:
                 self.serial_queue.put("🚀 Démarrage de l'envoi cyclique des séquences.")
-                first_cycle = True
-                while self.serial_active and (first_cycle or self.loop_profile_var.get()):
-                    first_cycle = False
-
+                while self.serial_active:
                     for seq_name in self.sequences:
+                        if not self.serial_active:
+                            break
                         seq = self.sequences[seq_name]
                         powers = seq['powers']
                         duration = seq['duration']
@@ -830,6 +831,10 @@ class GVMControlApp:
                                     self.serial_queue.put(f"Erreur d'envoi: {e}")
                             time.sleep(max(0, 1.0 - (time.time() - loop_start)))
                             self.root.after(0, self.update_grid_with_powers, powers)
+                    
+                    if not self.loop_profile_var.get():
+                        break  # On sort de la boucle principale
+
                             
                 # Dernier envoi pour arrêter tous les ventilateurs
                 zero_powers = {
