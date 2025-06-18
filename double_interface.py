@@ -799,17 +799,18 @@ class GVMControlApp:
             return
 
         if self.sequences:
-            # 🔁 Exécution des séquences dynamiques (en boucle si demandé)
             self.serial_queue.put("🚀 Démarrage de l'envoi des séquences dynamiques.")
             try:
                 while self.serial_active:
+                    # 🔁 Boucle complète sur toutes les séquences
                     for seq_name in self.sequences:
                         if not self.serial_active:
-                            break  # Arrêt demandé
+                            break
 
                         seq = self.sequences[seq_name]
                         powers = seq['powers']
                         duration = seq['duration']
+
                         self.serial_queue.put(f"⏱ Séquence '{seq_name}' pendant {duration} secondes")
 
                         cell_ids = sorted(powers.keys())
@@ -833,26 +834,10 @@ class GVMControlApp:
                             time.sleep(max(0, 1.0 - (time.time() - loop_start)))
                             self.root.after(0, self.update_grid_with_powers, powers)
 
+                    # 🔁 Si la case "boucler" n'est pas cochée → on sort de la boucle
                     if not self.loop_profile_var.get():
-                        break  # On arrête après un cycle si la boucle n'est pas activée
+                        break
 
-                # 🛑 Arrêt des ventilateurs
-                zero_powers = {cell_id: [-1] * 9 for cell_id in self.fan_status}
-                for cell_id in self.fan_status:
-                    json_message = {
-                        cell_id: [-1] * 9,
-                        "Publish": int(cell_id)
-                    }
-                    try:
-                        msg = json.dumps(json_message)
-                        ser.write((msg + '\n').encode('utf-8'))
-                        self.serial_queue.put(f"🛑 Arrêt → {msg}")
-                    except Exception as e:
-                        self.serial_queue.put(f"Erreur lors de l'arrêt : {e}")
-                self.serial_queue.put("🛑 Fin de l'exécution des séquences.")
-            except Exception as e:
-                self.serial_queue.put(f"Erreur dans l'exécution dynamique : {e}")
-       
                 # Dernier envoi pour arrêter tous les ventilateurs
                 zero_powers = {
                     cell_id: [-1] * 9 for cell_id in self.fan_status
