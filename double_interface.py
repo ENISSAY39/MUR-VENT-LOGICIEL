@@ -691,7 +691,6 @@ class GVMControlApp:
                 data = {
                     "type": "dynamique",
                     "sequences": self.sequences,
-                    "loop": self.loop_profile_var.get()  # 🔁 Ajout ici
                 }
 
             else:
@@ -719,8 +718,6 @@ class GVMControlApp:
         try:
             with open(filepath, "r") as f:
                 data = json.load(f)
-            
-            self.loop_profile_var.set(data.get("loop", False))  # 🔁 Charge l'état si présent
 
             profil_type = data.get("type")
 
