@@ -44,6 +44,8 @@ class GVMControlApp:
         self.update_thread = threading.Thread(target=self.update_rpm_data, daemon=True)
         self.update_thread.start()
         
+        self.loop_profile_var = tk.BooleanVar(value=False)
+
     def charger_csv_ventilateur(self):
         # Récupérer le dossier où se trouve le script actuel
         dossier_script = os.path.dirname(os.path.abspath(__file__))
@@ -302,7 +304,6 @@ class GVMControlApp:
         ttk.Button(buttons_frame, text="Appliquer à tous", command=lambda: self.apply_power_all("execute")).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Reset la grille", command=lambda: self.reset_grille("execute")).pack(pady=5, ipadx=10, ipady=5)
         ttk.Button(buttons_frame, text="Charger profil", command=self.charger_profil).pack(pady=5, ipadx=10, ipady=5)
-
         self.send_button = ttk.Button(buttons_frame, text="Envoyer commande", command=self.start_serial_communication, state='normal')
         self.send_button.pack(pady=5, ipadx=10, ipady=5)
         self.stop_button = ttk.Button(buttons_frame, text="Arrêter l'envoi", command=self.stop_serial_communication, state='disabled')
@@ -790,16 +791,18 @@ class GVMControlApp:
             return
 
         if self.sequences:
-            self.serial_queue.put("🚀 Démarrage de l'envoi des séquences dynamiques.")
+            # 🔁 Envoi continu des séquences
             try:
-                # 🔁 Nouvelle boucle pour gérer la répétition des séquences
+                self.serial_queue.put("🚀 Démarrage de l'envoi cyclique des séquences.")
+                first_cycle = True
                 while self.serial_active:
+                    first_cycle = False
+
                     for seq_name in self.sequences:
                         seq = self.sequences[seq_name]
                         powers = seq['powers']
                         duration = seq['duration']
-
-                        self.serial_queue.put(f"⏱ Séquence '{seq_name}' pendant {duration} secondes")
+                        self.serial_queue.put(f"⏱ Envoi de la séquence '{seq_name}' pendant {duration} secondes")
 
                         cell_ids = sorted(powers.keys())
                         seq_start = time.time()
@@ -811,7 +814,7 @@ class GVMControlApp:
                                 json_message = {
                                     cell_id: [self.obtenir_indice_depuis_pourcentage(p) for p in powers[cell_id]]
                                     for cell_id in cell_ids
-                                }
+                                }       
                                 json_message["Publish"] = int(publish_cell)
                                 try:
                                     msg = json.dumps(json_message)
@@ -821,15 +824,16 @@ class GVMControlApp:
                                     self.serial_queue.put(f"Erreur d'envoi: {e}")
                             time.sleep(max(0, 1.0 - (time.time() - loop_start)))
                             self.root.after(0, self.update_grid_with_powers, powers)
-
-                    # 🔁 Si la case "boucler" est décochée, on arrête après une passe
-                    if not self.loop_profile_var.get():
-                        break
-
-                # 🛑 Envoi terminé, on coupe les ventilateurs
-                zero_powers = {cell_id: [-1] * 9 for cell_id in self.fan_status}
+                            
+                # Dernier envoi pour arrêter tous les ventilateurs
+                zero_powers = {
+                    cell_id: [-1] * 9 for cell_id in self.fan_status
+                }
+                json_message = {
+                    cell_id: [-1] * 9 for cell_id in self.fan_status
+                }
                 for cell_id in self.fan_status:
-                    json_message = zero_powers.copy()
+                    json_message[cell_id] = [-1] * 9
                     json_message["Publish"] = int(cell_id)
                     try:
                         msg = json.dumps(json_message)
@@ -837,12 +841,9 @@ class GVMControlApp:
                         self.serial_queue.put(f"🛑 Arrêt → {msg}")
                     except Exception as e:
                         self.serial_queue.put(f"Erreur lors de l'arrêt : {e}")
-
                 self.serial_queue.put("🛑 Envoi interrompu par l'utilisateur.")
-
             except Exception as e:
                 self.serial_queue.put(f"Erreur lors de l'exécution des séquences: {e}")
-
         else:
             # 🔁 Envoi continu du profil statique
             try:
@@ -945,7 +946,7 @@ class GVMControlApp:
             self.rpm_data[cell_id] = rpms  # met à jour les données utilisées par les tooltips
 
         # 💡 Mise à jour visuelle immédiate des couleurs
-        #self.actualiser_couleurs_ventilateurs()
+        self.actualiser_couleurs_ventilateurs()
 
 
     def get_rpm_text_consigne(self, cell_id, fan_idx):
