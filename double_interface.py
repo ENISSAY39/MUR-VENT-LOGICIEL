@@ -798,7 +798,8 @@ class GVMControlApp:
         if self.sequences:
             self.serial_queue.put("🚀 Démarrage de l'envoi des séquences dynamiques.")
             try:
-                while self.serial_active:
+                # 🔁 Nouvelle boucle pour gérer la répétition des séquences
+                while self.serial_active and (self.loop_profile_var.get() or True):
                     for seq_name in self.sequences:
                         if not self.serial_active:
                             break
@@ -830,22 +831,14 @@ class GVMControlApp:
                             time.sleep(max(0, 1.0 - (time.time() - loop_start)))
                             self.root.after(0, self.update_grid_with_powers, powers)
 
-                    # 👉 Correction ici :
+                    # 🔁 Si la case "boucler" est décochée, on arrête après une passe
                     if not self.loop_profile_var.get():
-                        break  # on sort du while principal
-                    else:
-                        self.serial_queue.put("🔁 Reprise de la boucle dynamique")
+                        break
 
-
-                # Dernier envoi pour arrêter tous les ventilateurs
-                zero_powers = {
-                    cell_id: [-1] * 9 for cell_id in self.fan_status
-                }
-                json_message = {
-                    cell_id: [-1] * 9 for cell_id in self.fan_status
-                }
+                # 🛑 Envoi terminé, on coupe les ventilateurs
+                zero_powers = {cell_id: [-1] * 9 for cell_id in self.fan_status}
                 for cell_id in self.fan_status:
-                    json_message[cell_id] = [-1] * 9
+                    json_message = zero_powers.copy()
                     json_message["Publish"] = int(cell_id)
                     try:
                         msg = json.dumps(json_message)
@@ -853,9 +846,12 @@ class GVMControlApp:
                         self.serial_queue.put(f"🛑 Arrêt → {msg}")
                     except Exception as e:
                         self.serial_queue.put(f"Erreur lors de l'arrêt : {e}")
+
                 self.serial_queue.put("🛑 Envoi interrompu par l'utilisateur.")
+
             except Exception as e:
                 self.serial_queue.put(f"Erreur lors de l'exécution des séquences: {e}")
+
         else:
             # 🔁 Envoi continu du profil statique
             try:
