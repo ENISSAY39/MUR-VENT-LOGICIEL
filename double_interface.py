@@ -1,3 +1,4 @@
+
 import tkinter as tk
 from tkinter import ttk, simpledialog, messagebox, filedialog
 import json
@@ -825,21 +826,7 @@ class GVMControlApp:
                 if not self.serial_active:
                     return  # 🛑 l'utilisateur a arrêté l'envoi
 
-                # Dernier envoi pour arrêt
-                cell_ids = sorted(self.fan_status.keys())
-                for publish_cell in cell_ids :
-                    json_message = {
-                        cid: [-1]*9
-                        for cid in cell_ids
-                    }
-                    json_message["Publish"] = int(publish_cell)
-                    try:
-                        msg = json.dumps(json_message)
-                        self.ser.write((msg + '\n').encode('utf-8'))
-                        self.serial_queue.put(f"Envoyé → {msg}")
-                    except Exception as e:
-                        self.serial_queue.put(f"Erreur d'envoi: {e}")
-
+                self.stop_serial_communication()
                 self.serial_queue.put("🛑 Envoi interrompu par l'utilisateur.")
             except Exception as e:
                 self.serial_queue.put(f"Erreur lors de l'exécution des séquences: {e}")
@@ -870,32 +857,12 @@ class GVMControlApp:
                         except Exception as e:
                             self.serial_queue.put(f"Erreur d'envoi (statique): {e}")
                     time.sleep(max(0, 1.0 - (time.time() - loop_start)))
-                # Dernier envoi pour arrêter tous les ventilateurs
-                zero_powers = {
-                    cell_id: [-1] * 9 for cell_id in self.fan_status
-                }
-                json_message = {
-                    cell_id: [-1] * 9 for cell_id in self.fan_status
-                }
-                for cell_id in self.fan_status:
-                    json_message = {
-                        cell_id: [-1]*9
-                        for cell_id in cell_ids
-                    }
-                    json_message["Publish"] = int(publish_cell)
-                    try:
-                        msg = json.dumps(json_message)
-                        self.ser.write((msg + '\n').encode('utf-8'))
-                        self.serial_queue.put(f"Envoyé → {msg}")
-                    except Exception as e:
-                        self.serial_queue.put(f"Erreur d'envoi: {e}")
 
                 self.serial_queue.put("🛑 Envoi statique arrêté par l'utilisateur.")
             except Exception as e:
                 self.serial_queue.put(f"Erreur lors de l'envoi du profil statique: {e}")
 
     def stop_serial_communication(self):
-        self.serial_active = False  # Signale au thread de s'arrêter
         self.serial_queue = queue.Queue()
         self.stop_button.config(state='disabled')
         self.send_button.config(state='normal')
@@ -912,12 +879,14 @@ class GVMControlApp:
                     self.ser.write((msg + '\n').encode('utf-8'))
                     self.serial_queue.put(f"🛑 Arrêt → {msg}")
                 self.ser.close()
-                self.serial_queue.put("✅ Port série fermé.")
+                self.serial_queue.put("Port série fermé.")
             except Exception as e:
                 self.serial_queue.put(f"Erreur lors de l'arrêt série : {e}")
         else:
-            self.serial_queue.put("ℹ️ Aucun port série actif à fermer.")
+            self.serial_queue.put("Aucun port série actif à fermer.")
 
+        self.serial_active = False  # Signale au thread de s'arrêter
+        
     def update_serial_log_display(self):
         try:
             while not self.serial_queue.empty():
