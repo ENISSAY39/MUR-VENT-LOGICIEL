@@ -791,14 +791,14 @@ class GVMControlApp:
             return
 
         if self.sequences:
-            # 🔁 Envoi continu des séquences
             try:
                 self.serial_queue.put("🚀 Démarrage de l'envoi cyclique des séquences.")
-                first_cycle = True
-                if self.serial_active:
-                    first_cycle = False
-
+                
+                while self.serial_active:
                     for seq_name in self.sequences:
+                        if not self.serial_active:
+                            break
+
                         seq = self.sequences[seq_name]
                         powers = seq['powers']
                         duration = seq['duration']
@@ -814,7 +814,7 @@ class GVMControlApp:
                                 json_message = {
                                     cell_id: [self.obtenir_indice_depuis_pourcentage(p) for p in powers[cell_id]]
                                     for cell_id in cell_ids
-                                }       
+                                }
                                 json_message["Publish"] = int(publish_cell)
                                 try:
                                     msg = json.dumps(json_message)
@@ -824,26 +824,24 @@ class GVMControlApp:
                                     self.serial_queue.put(f"Erreur d'envoi: {e}")
                             time.sleep(max(0, 1.0 - (time.time() - loop_start)))
                             self.root.after(0, self.update_grid_with_powers, powers)
-                            
-                # Dernier envoi pour arrêter tous les ventilateurs
-                zero_powers = {
-                    cell_id: [-1] * 9 for cell_id in self.fan_status
-                }
-                json_message = {
-                    cell_id: [-1] * 9 for cell_id in self.fan_status
-                }
+
+                # Dernier envoi pour arrêt
                 for cell_id in self.fan_status:
-                    json_message[cell_id] = [-1] * 9
-                    json_message["Publish"] = int(cell_id)
+                    json_message = {
+                        cell_id: [-1] * 9,
+                        "Publish": int(cell_id)
+                    }
                     try:
                         msg = json.dumps(json_message)
                         ser.write((msg + '\n').encode('utf-8'))
                         self.serial_queue.put(f"🛑 Arrêt → {msg}")
                     except Exception as e:
                         self.serial_queue.put(f"Erreur lors de l'arrêt : {e}")
+
                 self.serial_queue.put("🛑 Envoi interrompu par l'utilisateur.")
             except Exception as e:
-                self.serial_queue.put(f"Erreur lors de l'exécution des séquences: {e}")       
+                self.serial_queue.put(f"Erreur lors de l'exécution des séquences: {e}")
+       
         else:
             # 🔁 Envoi continu du profil statique
             try:
