@@ -892,33 +892,35 @@ class GVMControlApp:
                 self.serial_queue.put(f"Erreur lors de l'envoi du profil statique: {e}")
 
     def stop_serial_communication(self):
-        ser = serial.Serial('/dev/serial0', 9600, timeout=1)
-        self.serial_queue = queue.Queue()
-        
-# Dernier envoi pour arrêter tous les ventilateurs
-        zero_powers = {
-            cell_id: [-1] * 9 for cell_id in self.fan_status
-        }
-        json_message = {
-            cell_id: [-1] * 9 for cell_id in self.fan_status
-        }
-        for cell_id in self.fan_status:
-            json_message[cell_id] = [-1] * 9
-            json_message["Publish"] = int(cell_id)
-            
-            try:
-                msg = json.dumps(json_message)
-                ser.write((msg + '\n').encode('utf-8'))
-                self.serial_queue.put(f"🛑 Arrêt → {msg}")
-            except Exception as e:
-                self.serial_queue.put(f"Erreur lors de l'arrêt : {e}")
-
+        # 🛑 Arrêt immédiat du thread
         self.serial_active = False
+
+        # Réactive les boutons
         self.stop_button.config(state='disabled')
         self.send_button.config(state='normal')
 
-        #if hasattr(self, 'serial_log_window') and self.serial_log_window.winfo_exists():
-            #self.serial_log_window.destroy()
+        try:
+            ser = serial.Serial('/dev/serial0', 9600, timeout=1)
+        except Exception as e:
+            self.serial_queue.put(f"Erreur ouverture port série (à l'arrêt) : {e}")
+            return
+
+        # Dernier envoi : -1 sur tous les ventilateurs
+        for cell_id in self.fan_status:
+            json_message = {
+                f"\"{cell_id}\"": [-1] * 9,  # 🟡 Format spécial \"11\"
+                "Publish": int(cell_id)
+            }
+
+            # Convertit en JSON et envoie
+            standard_json = json.dumps(json_message)
+            escaped_json = standard_json.replace('"', r'\"')
+
+            try:
+                ser.write((escaped_json + '\n').encode('utf-8'))
+                self.serial_queue.put(f"🛑 JSON d'arrêt envoyé → {escaped_json}")
+            except Exception as e:
+                self.serial_queue.put(f"Erreur lors de l'envoi du JSON d'arrêt : {e}")
 
         
     def update_serial_log_display(self):
