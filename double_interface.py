@@ -795,7 +795,7 @@ class GVMControlApp:
             try:
                 self.serial_queue.put("🚀 Démarrage de l'envoi cyclique des séquences.")
                 first_cycle = True
-                while self.serial_active:
+                if self.serial_active:
                     first_cycle = False
 
                     for seq_name in self.sequences:
@@ -843,7 +843,7 @@ class GVMControlApp:
                         self.serial_queue.put(f"Erreur lors de l'arrêt : {e}")
                 self.serial_queue.put("🛑 Envoi interrompu par l'utilisateur.")
             except Exception as e:
-                self.serial_queue.put(f"Erreur lors de l'exécution des séquences: {e}")
+                self.serial_queue.put(f"Erreur lors de l'exécution des séquences: {e}")       
         else:
             # 🔁 Envoi continu du profil statique
             try:
@@ -893,6 +893,8 @@ class GVMControlApp:
 
     def stop_serial_communication(self):
         # 🛑 Arrêt immédiat du thread
+        self.serial_queue = queue.Queue()
+        
         self.serial_active = False
 
         # Réactive les boutons
@@ -948,7 +950,8 @@ class GVMControlApp:
             self.rpm_data[cell_id] = rpms  # met à jour les données utilisées par les tooltips
 
         # 💡 Mise à jour visuelle immédiate des couleurs
-        self.actualiser_couleurs_ventilateurs()
+        #
+        # self.actualiser_couleurs_ventilateurs()
 
 
     def get_rpm_text_consigne(self, cell_id, fan_idx):
